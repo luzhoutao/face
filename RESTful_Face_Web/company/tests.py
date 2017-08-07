@@ -11,11 +11,11 @@ admin_password = 'password123'
 
 class CompaniesCRUDTest(TestCase):
 
-    host = "http://127.0.0.1:8000/"
+    host = "http://127.0.0.1:9090/"
 
     def test_anonymous_can_create(self):
         uri = 'companies/'
-        data = {'username': 'luzhoutao', 'email': 'luzhoutao@gmail.com', 'password': 'password123'}
+        data = {'username': 'test_anonymous_can_create', 'email': 'luzhoutao@gmail.com', 'password': 'password123'}
         response = requests.post(os.path.join(self.host, uri), data=data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         new_id = response.json()['id']

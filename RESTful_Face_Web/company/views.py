@@ -23,6 +23,10 @@ class CompaniesViewSet(mixins.ListModelMixin,
     serializer_class = CompanySerializer
     permission_classes = (CompaniesPermission, )
 
+    def perform_create(self, serializer):
+        print("TODO: create new database")
+        serializer.save()
+
 class CompanyViewSet(mixins.CreateModelMixin,
                      mixins.RetrieveModelMixin,
                      mixins.UpdateModelMixin,

@@ -6,17 +6,19 @@ from django.contrib.auth.models import User
 from .utils import generate_unique_id
 
 class CompanySerializer(serializers.HyperlinkedModelSerializer):
+    CompanyId = serializers.CharField(source="first_name", read_only=True)
     class Meta:
         model = User
-        fields = ('id', 'url', 'username', 'email', 'password', )
+        fields = ('id', 'url', 'username', 'email', 'password', 'CompanyId')
         extra_kwargs = {'password': {'write_only': True}}
 
     def create(self, validated_data):
         user = User(
             email=validated_data['email'],
             username=validated_data['username'],
-            first_name=generate_unique_id(),
         )
         user.set_password(validated_data['password'])
+        user.save()
+        user.first_name = generate_unique_id(user)
         user.save()
         return user
