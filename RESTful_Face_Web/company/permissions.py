@@ -30,3 +30,4 @@ class CompanyPermission(permissions.BasePermission):
         safe = request.method in permissions.SAFE_METHODS
 
         return (superuser and (delete or safe)) or (owner and (safe or update))
+

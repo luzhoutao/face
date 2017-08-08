@@ -7,25 +7,29 @@ from rest_framework import status
 from rest_framework import viewsets, mixins
 from rest_framework.decorators import permission_classes as permissionClasses
 # serializers
-from .serializers import CompanySerializer
+from .serializers import CompanySerializer, PersonSerializer
 # models
 from django.contrib.auth.models import User
+from .models import Person
 
 # permissions
 from rest_framework import permissions
 from .permissions import CompanyPermission, CompaniesPermission
 
-# Create your views here.
+# utils
+from .utils.random_unique_id import generate_unique_id
+from .utils.retrieve_admin import get_admin
+
 class CompaniesViewSet(mixins.ListModelMixin,
                        mixins.CreateModelMixin,
                        viewsets.GenericViewSet):
-    queryset = User.objects.all()
+    queryset = User.objects.using('admin').all()
     serializer_class = CompanySerializer
     permission_classes = (CompaniesPermission, )
 
     def perform_create(self, serializer):
         print("TODO: create new database")
-        serializer.save()
+        serializer.save(companyID=generate_unique_id(get_admin()))
 
 class CompanyViewSet(mixins.CreateModelMixin,
                      mixins.RetrieveModelMixin,
@@ -36,21 +40,33 @@ class CompanyViewSet(mixins.CreateModelMixin,
     serializer_class = CompanySerializer
     permission_classes = (CompanyPermission, )
 
-    @detail_route(methods=['put'])
-    def update_info(self, request, pk=None, *args, **kwargs):
+    # copy and modify UpdateModelMixin to do partial modification
+    def update(self, request, *args, **kwargs):
         company = self.get_object()
-        if not company:
-            return Response(status=status.HTTP_404_NOT_FOUND)
-        serializer = CompanySerializer(company, data=request.data, partial=True, context={'request': request})
+        serializer = self.get_serializer(company, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return Response(serializer.data)
 
-        if serializer.is_valid():
-            serializer.update(company,request.data)
-            return Response(data=serializer.data, status=status.HTTP_200_OK)
-        else:
-            return Response(status=status.HTTP_400_BAD_REQUEST)
+    def perform_destroy(self, instance):
+        persons = Person.objects.filter(companyID=instance.first_name)
+        [person.delete() for person in persons]
+        instance.delete()
 
+class PersonViewSet(viewsets.ModelViewSet):
+    serializer_class = PersonSerializer
+    permission_classes = (permissions.IsAuthenticated, )
 
+    def get_queryset(self):
+        company = self.request.user
+        return Person.objects.filter(companyID=company.first_name)
 
+    def perform_create(self, serializer):
+        serializer.save(companyID=self.request.user.first_name, userID=generate_unique_id(self.request.user))
 
-
-
+    def update(self, request, *args, **kwargs):
+        person = self.get_object()
+        serializer = self.get_serializer(person, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return Response(serializer.data)
