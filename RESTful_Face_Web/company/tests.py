@@ -215,7 +215,7 @@ class PersonTest(TestCase):
         url = os.path.join(self.host, 'company/' + str(user['id']) + '/')
         requests.delete(url, auth=(admin_name, admin_password))
 
-    def test_owner_can_upate(self):
+    def test_owner_can_update_person(self):
         user = {'username': 'test_person_user', 'email': 'test_person_user@example.com', 'password': 'password123'}
         url = os.path.join(self.host, 'companies/')
         response = requests.post(url, data=user)

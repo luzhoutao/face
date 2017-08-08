@@ -28,7 +28,7 @@ class Person(models.Model):
     modified_time = models.DateTimeField(auto_now=True)
 
     name = models.CharField(max_length=50, unique=True, validators=[RegexValidator(r'^[\w.@+-]+$')])
-    email = models.EmailField(blank=True, unique=True)
+    email = models.EmailField(blank=True)
     first_name = models.CharField(max_length=30, blank=True)
     last_name = models.CharField(max_length=30, blank=True)
     note = models.CharField(max_length=200, blank=True)

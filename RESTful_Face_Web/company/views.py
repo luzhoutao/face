@@ -1,17 +1,14 @@
 from django.shortcuts import render
 # request and response
 from rest_framework.response import Response
-from rest_framework.decorators import detail_route
-from rest_framework import status
 # view
 from rest_framework import viewsets, mixins
-from rest_framework.decorators import permission_classes as permissionClasses
 # serializers
 from .serializers import CompanySerializer, PersonSerializer
 # models
 from django.contrib.auth.models import User
 from .models import Person
-
+from RESTful_Face_Web.settings import DATABASES
 # permissions
 from rest_framework import permissions
 from .permissions import CompanyPermission, CompaniesPermission
@@ -19,24 +16,27 @@ from .permissions import CompanyPermission, CompaniesPermission
 # utils
 from .utils.random_unique_id import generate_unique_id
 from .utils.retrieve_admin import get_admin
+from .utils.runtime_database import create_database
 
 class CompaniesViewSet(mixins.ListModelMixin,
                        mixins.CreateModelMixin,
                        viewsets.GenericViewSet):
-    queryset = User.objects.using('admin').all()
+    queryset = User.objects.using('default').all()
     serializer_class = CompanySerializer
     permission_classes = (CompaniesPermission, )
 
     def perform_create(self, serializer):
         print("TODO: create new database")
         serializer.save(companyID=generate_unique_id(get_admin()))
+        create_database(serializer.data['companyID'])
+        print(Person.objects.using(serializer.data['companyID']).all())
 
 class CompanyViewSet(mixins.CreateModelMixin,
                      mixins.RetrieveModelMixin,
                      mixins.UpdateModelMixin,
                      mixins.DestroyModelMixin,
                      viewsets.GenericViewSet):
-    queryset = User.objects.all()
+    queryset = User.objects.using('default').all()
     serializer_class = CompanySerializer
     permission_classes = (CompanyPermission, )
 
@@ -59,10 +59,10 @@ class PersonViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         company = self.request.user
-        return Person.objects.filter(companyID=company.first_name)
+        return Person.objects.using(company.first_name).all()
 
     def perform_create(self, serializer):
-        serializer.save(companyID=self.request.user.first_name, userID=generate_unique_id(self.request.user))
+        serializer.save(companyID=self.request.user.first_name, userID=generate_unique_id(self.request.user), )
 
     def update(self, request, *args, **kwargs):
         person = self.get_object()
