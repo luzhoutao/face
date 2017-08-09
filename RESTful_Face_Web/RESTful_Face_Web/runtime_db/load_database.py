@@ -1,6 +1,7 @@
 from django.db import connections
+from RESTful_Face_Web import settings
 import os
-from .runtime_database import DB_SETTINGS_BASE_DIR
+from RESTful_Face_Web.settings import DB_SETTINGS_BASE_DIR
 
 for filename in os.listdir(DB_SETTINGS_BASE_DIR):
     if 'dbconf' not in filename:

@@ -18,7 +18,7 @@ log = logging.getLogger(__name__)
 # utils
 from .utils.random_unique_id import generate_unique_id
 from .utils.retrieve_admin import get_admin
-from .utils.runtime_database import create_mysql_database, drop_mysql_database
+from RESTful_Face_Web.settings import myDBManager
 
 class CompaniesViewSet(mixins.ListModelMixin,
                        mixins.CreateModelMixin,
@@ -31,7 +31,8 @@ class CompaniesViewSet(mixins.ListModelMixin,
         serializer.save(companyID=generate_unique_id(get_admin()))
 
         log.info("Creating db for company %s (%s)..."%(serializer.data['username'], serializer.data['companyID']))
-        create_mysql_database(serializer.data['companyID'])
+        myDBManager.create_database(serializer.data['companyID'])
+        myDBManager.create_table(serializer.data['companyID'], Person, 'person')
 
         log.info("Company '%s' created !"%(serializer.data['username']))
 
@@ -57,10 +58,9 @@ class CompanyViewSet(mixins.CreateModelMixin,
     # override to do CASCADE delete and drop the database
     def perform_destroy(self, instance):
         persons = Person.objects.filter(companyID=instance.first_name)
-        print(persons)
         [person.delete() for person in persons]
 
-        drop_mysql_database(instance.first_name)
+        myDBManager.drop_database(instance.first_name)
         log.info("Company '%s' destroyed!" % (instance.username))
 
         instance.delete()
