@@ -76,7 +76,7 @@ class MySQLManager(BaseDBManager):
         name = str(name)
 
         # tell Django there is a new mysql database
-        setting_str = '''connections.databases['%s'] = {
+        setting_str = '''settings.DATABASES['%s'] = {
     'ENGINE': 'django.db.backends.mysql',
     'USER': '%s',
     'PASSWORD': '%s',
@@ -105,9 +105,10 @@ class MySQLManager(BaseDBManager):
         conn.commit()
         conn.close()
 
-        log.info("Created mysql database %s and initialize a table 'Person'!" % (name))
+        log.info("Created mysql database %s and initialize a table '%s'!" % (db_name, table_name))
 
     def drop_database(self, name):
+        print("dropping database, ", name)
         # delete setting files
         try:
             connections.databases.pop(name)
