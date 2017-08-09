@@ -32,3 +32,29 @@ class Person(models.Model):
     first_name = models.CharField(max_length=30, blank=True)
     last_name = models.CharField(max_length=30, blank=True)
     note = models.CharField(max_length=200, blank=True)
+
+    @staticmethod
+    def generate_sqlite():
+        return 'CREATE TABLE "company_person" ' \
+                          '("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "userID" varchar(50) NOT NULL, ' \
+                          '"companyID" varchar(50) NOT NULL, "created_time" datetime NOT NULL, "modified_time" datetime NOT NULL, ' \
+                          '"name" varchar(50) NOT NULL UNIQUE, "first_name" varchar(30) NOT NULL, "last_name" varchar(30) NOT NULL, ' \
+                          '"note" varchar(200) NOT NULL, "email" varchar(254) NOT NULL);'
+
+    @staticmethod
+    def generate_mysql():
+        return '''CREATE TABLE `company_person` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `userID` varchar(50) NOT NULL,
+  `companyID` varchar(50) NOT NULL,
+  `created_time` datetime NOT NULL,
+  `modified_time` datetime NOT NULL,
+  `name` varchar(50) NOT NULL,
+  `email` varchar(254) NOT NULL,
+  `first_name` varchar(30) NOT NULL,
+  `last_name` varchar(30) NOT NULL,
+  `note` varchar(200) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `name` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+'''

@@ -157,7 +157,7 @@ class CompaniesCRUDTest(TestCase):
 '''
 class PersonTest(TestCase):
 
-    host = 'http://127.0.0.1:8000/'
+    host = 'http://127.0.0.1:9090/'
 
     def test_anonymous_cannot_access_person(self):
         url = os.path.join(self.host, 'persons/')
@@ -175,7 +175,7 @@ class PersonTest(TestCase):
 
     def test_owner_can_create_and_delete_person(self):
         user = {'username': 'test_person_user', 'email': 'test_person_user@example.com', 'password': 'password123'}
-        url = os.path.join(self.host, 'companies/')
+        url = os.path.join(self.host, 'company/')
         response = requests.post(url, data=user)
         user['id'] = response.json()['id']
 
@@ -194,7 +194,7 @@ class PersonTest(TestCase):
 
     def test_owner_can_list_and_retrieve_person(self):
         user = {'username': 'test_person_user', 'email': 'test_person_user@example.com', 'password': 'password123'}
-        url = os.path.join(self.host, 'companies/')
+        url = os.path.join(self.host, 'company/')
         response = requests.post(url, data=user)
         user['id'] = response.json()['id']
 
@@ -217,7 +217,7 @@ class PersonTest(TestCase):
 
     def test_owner_can_update_person(self):
         user = {'username': 'test_person_user', 'email': 'test_person_user@example.com', 'password': 'password123'}
-        url = os.path.join(self.host, 'companies/')
+        url = os.path.join(self.host, 'company/')
         response = requests.post(url, data=user)
         user['id'] = response.json()['id']
 

@@ -12,11 +12,13 @@ from RESTful_Face_Web.settings import DATABASES
 # permissions
 from rest_framework import permissions
 from .permissions import CompanyPermission, CompaniesPermission
-
+# logging
+import logging
+log = logging.getLogger(__name__)
 # utils
 from .utils.random_unique_id import generate_unique_id
 from .utils.retrieve_admin import get_admin
-from .utils.runtime_database import create_database
+from .utils.runtime_database import create_mysql_database, drop_mysql_database
 
 class CompaniesViewSet(mixins.ListModelMixin,
                        mixins.CreateModelMixin,
@@ -26,11 +28,14 @@ class CompaniesViewSet(mixins.ListModelMixin,
     permission_classes = (CompaniesPermission, )
 
     def perform_create(self, serializer):
-        print("TODO: create new database")
         serializer.save(companyID=generate_unique_id(get_admin()))
-        create_database(serializer.data['companyID'])
-        print(Person.objects.using(serializer.data['companyID']).all())
 
+        log.info("Creating db for company %s (%s)..."%(serializer.data['username'], serializer.data['companyID']))
+        create_mysql_database(serializer.data['companyID'])
+
+        log.info("Company '%s' created !"%(serializer.data['username']))
+
+# due to special permission requirement, splite list/create with CRUD on single object
 class CompanyViewSet(mixins.CreateModelMixin,
                      mixins.RetrieveModelMixin,
                      mixins.UpdateModelMixin,
@@ -46,27 +51,39 @@ class CompanyViewSet(mixins.CreateModelMixin,
         serializer = self.get_serializer(company, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
+        log.info("Company '%s' updated!" % (serializer.data['username']))
         return Response(serializer.data)
 
+    # override to do CASCADE delete and drop the database
     def perform_destroy(self, instance):
         persons = Person.objects.filter(companyID=instance.first_name)
+        print(persons)
         [person.delete() for person in persons]
+
+        drop_mysql_database(instance.first_name)
+        log.info("Company '%s' destroyed!" % (instance.username))
+
         instance.delete()
 
 class PersonViewSet(viewsets.ModelViewSet):
     serializer_class = PersonSerializer
     permission_classes = (permissions.IsAuthenticated, )
 
+    # override to using specific database
     def get_queryset(self):
         company = self.request.user
         return Person.objects.using(company.first_name).all()
 
+    # override to pass generated random ID
     def perform_create(self, serializer):
         serializer.save(companyID=self.request.user.first_name, userID=generate_unique_id(self.request.user), )
-
+        log.info("Company %s(%s): user %s(%s) created!" % (self.request.user.username, self.request.user.first_name, serializer.data['name'], serializer.data['userID']))
+    
+    # override to do partial update
     def update(self, request, *args, **kwargs):
         person = self.get_object()
         serializer = self.get_serializer(person, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
+        log.info("Company %s(%s): user %s(%s) updated!" % (self.request.user.username, self.request.user.first_name, serializer.data['name'], serializer.data['userID']))
         return Response(serializer.data)
