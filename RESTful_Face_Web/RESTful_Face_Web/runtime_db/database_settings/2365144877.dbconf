@@ -1,8 +1,0 @@
-settings.DATABASES['2365144877'] = {
-    'ENGINE': 'django.db.backends.mysql',
-    'USER': 'RESTful_Face_API',
-    'PASSWORD': 'jt1330',
-    'NAME': 'company2365144877',
-    'HOST': 'localhost',
-    'PORT': '3306' ,
-}

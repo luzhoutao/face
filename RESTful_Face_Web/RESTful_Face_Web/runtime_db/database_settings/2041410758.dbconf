@@ -1,4 +1,0 @@
-settings.DATABASES['2041410758'] = {
-    'ENGINE': 'django.db.backends.sqlite3',
-    'NAME': '/Users/luzhoutao/study abroad/Sesame@NUS/face/RESTful_Face_Web/db_2041410758.sqlite3',
-}

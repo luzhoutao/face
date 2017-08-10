@@ -5,14 +5,12 @@ from rest_framework.exceptions import ValidationError
 # view
 from rest_framework import viewsets, mixins
 # parser
-from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser, FileUploadParser
 # serializers
-from .serializers import CompanySerializer, PersonSerializer, FaceSerializer
+from .serializers import CompanySerializer, PersonSerializer, FaceSerializer, CommandSerializer
 # models
 from django.contrib.auth.models import User
-from .models import Person, Face
-from django.db.models import Q
-from RESTful_Face_Web.settings import DATABASES
+from .models import Person, Face, Command
 # permissions
 from rest_framework import permissions
 from .permissions import CompanyPermission, CompaniesPermission
@@ -23,6 +21,9 @@ log = logging.getLogger(__name__)
 from .utils.random_unique_id import generate_unique_id
 from .utils.retrieve_admin import get_admin
 from RESTful_Face_Web.settings import myDBManager
+from rest_framework.decorators import list_route
+# service
+from service import services
 # image
 from PIL import Image
 from io import BytesIO
@@ -34,19 +35,19 @@ class CompaniesViewSet(mixins.ListModelMixin,
     serializer_class = CompanySerializer
     permission_classes = (CompaniesPermission, )
 
+    # override to create dynamic database
     def perform_create(self, serializer):
         serializer.save(first_name=generate_unique_id(get_admin()))
 
-        log.info("Creating db for company %s (%s)..."%(serializer.data['username'], serializer.data['companyID']))
+        log.info("Creating db for company %s (%s)..." %(serializer.data['username'], serializer.data['companyID']))
         myDBManager.create_database(serializer.data['companyID'])
         myDBManager.create_table(serializer.data['companyID'], Person, 'person')
         myDBManager.create_table(serializer.data['companyID'], Face, 'face')
 
-        log.info("Company '%s' created !"%(serializer.data['username']))
+        log.info("Company '%s' created !" %(serializer.data['username']))
 
 # due to special permission requirement, splite list/create with CRUD on single object
-class CompanyViewSet(mixins.CreateModelMixin,
-                     mixins.RetrieveModelMixin,
+class CompanyViewSet(mixins.RetrieveModelMixin,
                      mixins.UpdateModelMixin,
                      mixins.DestroyModelMixin,
                      viewsets.GenericViewSet):
@@ -99,7 +100,7 @@ class PersonViewSet(viewsets.ModelViewSet):
 class FaceViewSet(viewsets.ModelViewSet):
     serializer_class = FaceSerializer
     permission_classes = (permissions.IsAuthenticated, )
-    parser_classes = (MultiPartParser, FormParser)
+    parser_classes = (MultiPartParser, FormParser, JSONParser, FileUploadParser)
 
     def get_queryset(self):
         # get the person
@@ -119,11 +120,80 @@ class FaceViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         serializer.save(image=None if 'image' not in self.request.data else self.request.data['image'])
 
+    # filter to get company's faces
     def __get_person(self, company, data):
         person = Person.objects.using(company.first_name)
-        if 'name' in self.request.data:
-            person = person.filter(name=self.request.data['name'])
+        if 'name' in data:
+            person = person.filter(name=data['name'])
         elif 'userID' in self.request.data:
-            person = person.filter(userID=self.request.data['userID'])
+            person = person.filter(userID=data['userID'])
 
         return [p for p in person]
+
+
+def log_command(service_config):
+    service = service_config[2]()
+    def decorator(func):
+        def func_wrapper(self, request):
+            # generate the command
+            ret = Command.objects.create(company=request.user.first_name, serviceID=service_config[0])
+            ret.save()
+            log.info("Service [%s] history has been stored!" %(service_config[1]))
+            return func(self, request, service)
+        return func_wrapper
+    return decorator
+
+class CommandViewSet(mixins.ListModelMixin,
+                     mixins.RetrieveModelMixin,
+                     viewsets.GenericViewSet):
+    serializer_class = CommandSerializer
+    permission_classes = (permissions.IsAuthenticated, )
+
+    def get_queryset(self):
+        if self.request.user.is_superuser:
+            commands = Command.objects.all()
+            if 'company' in self.request.data:
+                commands = commands.filter(company=self.request.data['company'])
+            return commands
+        else:
+            print(self.request.user)
+            return Command.objects.filter(company=self.request.user.first_name)
+
+    # https://www.thecodeship.com/patterns/guide-to-python-function-decorators/
+    @list_route(methods=['post', 'put'])
+    @log_command(services.QUALITY_CHECK)
+    def quality_check(self, request, service):
+        results = service.execute()
+        log.info('Service: '+services.QUALITY_CHECK[1])
+        return Response(results)
+'''
+    @list_route(methods=['post', 'put'])
+    @log_command(services.LANDMARK_DETECTION)
+    def landmark_detection(self, request, service):
+        results = service.execute()
+        return Response(results)
+
+    @list_route(methods=['post', 'put'])
+    @log_command(services.ATTRIBUTE_PREDICATE)
+    def attribute_predication(self, request, service):
+        results = service.execute()
+        return Response(results)
+
+    @list_route(methods=['post', 'put'])
+    @log_command(services.RECOGNITION)
+    def recognition(self, request, service):
+        results = service.execute()
+        return Response(results)
+
+    @list_route(methods=['post', 'put'])
+    @log_command(services.FEATURE_EXTRACTION)
+    def feature_extraction(self, request, service):
+        results = service.execute()
+        return Response(results)
+
+    @list_route(methods=['post', 'put'])
+    @log_command(services.ENHANCEMENT)
+    def enhancement(self, request, service):
+        results = service.execute()
+        return Response(results)
+'''

@@ -3,6 +3,8 @@ from django.contrib.auth.models import User
 from django.core.validators import RegexValidator
 # utils
 from datetime import datetime
+# service
+from service import services
 
 # Create your models here.
 
@@ -96,3 +98,17 @@ class Face(models.Model):
         storage = self.image.storage
         super().delete(using, keep_parents)
         storage.delete(filename)
+
+
+class Command(models.Model):
+    company = models.CharField(max_length=50)
+    serviceID = models.IntegerField()
+    issue_time = models.DateTimeField(auto_now_add=True)
+
+    arguments = models.CharField(max_length=1024, blank=True)
+    results = models.CharField(max_length=1024, blank=True)
+
+    def get_service_name(self):
+        r = [service[1] for service in services.SERVICES if service[0]==self.serviceID]
+        print(r)
+        return r[0] if len(r) == 1 else 'Invalid serviceID !'

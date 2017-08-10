@@ -2,10 +2,12 @@
 from rest_framework import serializers
 # model
 from django.contrib.auth.models import User
-from .models import Person, Face
+from .models import Person, Face, Command
 # utils
 from rest_framework.utils import model_meta
 from rest_framework.compat import set_many
+# service
+from service import services
 
 class CompanySerializer(serializers.ModelSerializer):
     companyID = serializers.CharField(source="first_name", read_only=True)
@@ -79,3 +81,10 @@ class FaceSerializer(serializers.HyperlinkedModelSerializer):
                 setattr(instance, attr, value)
         instance.save(using=instance.person.companyID)
         return instance
+
+class CommandSerializer(serializers.HyperlinkedModelSerializer):
+    service = serializers.CharField(source='get_service_name')
+
+    class Meta:
+        model = Command
+        fields = ('id', 'url', 'company', 'service', 'issue_time', 'arguments', 'results')
