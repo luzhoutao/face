@@ -11,7 +11,8 @@ log = logging.getLogger(__name__)
 from abc import ABCMeta, abstractmethod
 
 
-# database manager to create on the fly and initialize it !ß
+# database manager to create on the fly and initialize it !
+# https://stackoverflow.com/questions/6585373/django-multiple-and-dynamic-databases
 class BaseDBManager():
     __metaclass__ = ABCMeta
 
@@ -52,7 +53,7 @@ class SQLiteManager(BaseDBManager):
 
         filename = os.path.join(settings.BASE_DIR, 'db_'+db_name+'.sqlite3')
         conn = sqlite3.connect(filename)
-        conn.execute(Model.generate_sqlite())
+        [conn.execute(sql) for sql in Model.generate_sqlite()]
         conn.close()
 
         log.info("Created sqlite database %s and initialize a table '%s'!"%(db_name, table_name))

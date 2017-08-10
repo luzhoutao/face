@@ -3,6 +3,7 @@ import requests
 import os
 from rest_framework import status
 from rest_framework.reverse import reverse
+from RESTful_Face_Web.settings import BASE_DIR
 
 # Create your tests here.
 
@@ -160,7 +161,7 @@ class PersonTest(TestCase):
     host = 'http://127.0.0.1:9090/'
 
     def test_anonymous_cannot_access_person(self):
-        url = os.path.join(self.host, 'persons/')
+        url = os.path.join(self.host, 'person/')
         response = requests.get(url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -179,7 +180,7 @@ class PersonTest(TestCase):
         response = requests.post(url, data=user)
         user['id'] = response.json()['id']
 
-        url = os.path.join(self.host, 'persons/')
+        url = os.path.join(self.host, 'person/')
         person = {'name': 'test_person', 'email': 'test_person@example.com'}
         response = requests.post(url, data=person, auth=(user['username'], user['password']))
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -198,7 +199,7 @@ class PersonTest(TestCase):
         response = requests.post(url, data=user)
         user['id'] = response.json()['id']
 
-        url = os.path.join(self.host, 'persons/')
+        url = os.path.join(self.host, 'person/')
         person = {'name': 'test_person', 'email': 'test_person@example.com'}
         response = requests.post(url, data=person, auth=(user['username'], user['password']))
         person['id'] = response.json()['id']
@@ -221,7 +222,7 @@ class PersonTest(TestCase):
         response = requests.post(url, data=user)
         user['id'] = response.json()['id']
 
-        url = os.path.join(self.host, 'persons/')
+        url = os.path.join(self.host, 'person/')
         person = {'name': 'test_person', 'email': 'test_person@example.com'}
         response = requests.post(url, data=person, auth=(user['username'], user['password']))
         person['id'] = response.json()['id']
@@ -231,6 +232,31 @@ class PersonTest(TestCase):
         updated_data = {'first_name': 'Firstname'}
         response = requests.put(url, data=updated_data, auth=(user['username'], user['password']))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        url = os.path.join(self.host, 'company/' + str(user['id']) + '/')
+        requests.delete(url, auth=(admin_name, admin_password))
+
+    def test_owner_enroll_faces(self):
+        user = {'username': 'test_person_user', 'email': 'test_person_user@example.com', 'password': 'password123'}
+        url = os.path.join(self.host, 'company/')
+        response = requests.post(url, data=user)
+        user['id'] = response.json()['id']
+
+        url = os.path.join(self.host, 'person/')
+        person = {'name': 'test_person', 'email': 'test_person@example.com'}
+        response = requests.post(url, data=person, auth=(user['username'], user['password']))
+        person['id'] = response.json()['id']
+
+        url = os.path.join(self.host, 'face/')
+        auth = (user['username'], user['password'])
+        data = {'name': person['name']}
+        files = {'image': open(os.path.join(BASE_DIR, 'test.jpeg'), 'rb')}
+        response = requests.post(url, files=files, data=data, auth=auth);
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        face_id = response.json()['id']
+
+        response = requests.delete(os.path.join(url, str(face_id)), auth=auth)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
         url = os.path.join(self.host, 'company/' + str(user['id']) + '/')
         requests.delete(url, auth=(admin_name, admin_password))

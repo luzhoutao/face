@@ -27,6 +27,8 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
+# Admin User
+ADMIN_NAME = 'admin'
 
 # Application definition
 
@@ -80,19 +82,19 @@ MYSQL_PASSWORD = 'jt1330'
 MYSQL_HOST = 'localhost'
 DB_SETTINGS_BASE_DIR = os.path.join(BASE_DIR, 'RESTful_Face_Web/runtime_db/database_settings')
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'USER': 'RESTful_Face_API',
-        'PASSWORD': 'jt1330',
-        'NAME': 'Admin',
-        'HOST': 'localhost',
-        'PORT': '3306',
-    },
     #'default': {
-    #    'ENGINE': 'django.db.backends.sqlite3',
-    #    'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
-    #}
-    
+    #   'ENGINE': 'django.db.backends.mysql',
+    #   'USER': 'RESTful_Face_API',
+    #    'PASSWORD': 'jt1330',
+    #    'NAME': 'Admin',
+    #    'HOST': 'localhost',
+    #    'PORT': '3306',
+    #},
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+    }
+
 }
 
 
@@ -133,6 +135,9 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/1.11/howto/static-files/
 
 STATIC_URL = '/static/'
+
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+MEDIA_URL = '/media/'
 
 LOGGING = {
     'version': 1,
@@ -177,7 +182,7 @@ LOGGING = {
 }
 
 from .runtime_db import load_database
-from .runtime_db.runtime_database import MySQLManager
-myDBManager = MySQLManager()
-#from .runtime_db.runtime_database import SQLiteManager
-#myDBManager = SQLiteManager()
+#from .runtime_db.runtime_database import MySQLManager
+#myDBManager = MySQLManager()
+from .runtime_db.runtime_database import SQLiteManager
+myDBManager = SQLiteManager()

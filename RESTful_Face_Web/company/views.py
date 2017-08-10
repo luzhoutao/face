@@ -1,13 +1,17 @@
 from django.shortcuts import render
 # request and response
 from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError
 # view
 from rest_framework import viewsets, mixins
+# parser
+from rest_framework.parsers import MultiPartParser, FormParser
 # serializers
-from .serializers import CompanySerializer, PersonSerializer
+from .serializers import CompanySerializer, PersonSerializer, FaceSerializer
 # models
 from django.contrib.auth.models import User
-from .models import Person
+from .models import Person, Face
+from django.db.models import Q
 from RESTful_Face_Web.settings import DATABASES
 # permissions
 from rest_framework import permissions
@@ -19,6 +23,9 @@ log = logging.getLogger(__name__)
 from .utils.random_unique_id import generate_unique_id
 from .utils.retrieve_admin import get_admin
 from RESTful_Face_Web.settings import myDBManager
+# image
+from PIL import Image
+from io import BytesIO
 
 class CompaniesViewSet(mixins.ListModelMixin,
                        mixins.CreateModelMixin,
@@ -28,11 +35,12 @@ class CompaniesViewSet(mixins.ListModelMixin,
     permission_classes = (CompaniesPermission, )
 
     def perform_create(self, serializer):
-        serializer.save(companyID=generate_unique_id(get_admin()))
+        serializer.save(first_name=generate_unique_id(get_admin()))
 
         log.info("Creating db for company %s (%s)..."%(serializer.data['username'], serializer.data['companyID']))
         myDBManager.create_database(serializer.data['companyID'])
         myDBManager.create_table(serializer.data['companyID'], Person, 'person')
+        myDBManager.create_table(serializer.data['companyID'], Face, 'face')
 
         log.info("Company '%s' created !"%(serializer.data['username']))
 
@@ -87,3 +95,35 @@ class PersonViewSet(viewsets.ModelViewSet):
         self.perform_update(serializer)
         log.info("Company %s(%s): user %s(%s) updated!" % (self.request.user.username, self.request.user.first_name, serializer.data['name'], serializer.data['userID']))
         return Response(serializer.data)
+
+class FaceViewSet(viewsets.ModelViewSet):
+    serializer_class = FaceSerializer
+    permission_classes = (permissions.IsAuthenticated, )
+    parser_classes = (MultiPartParser, FormParser)
+
+    def get_queryset(self):
+        # get the person
+        person = self.__get_person(self.request.user, self.request.data)
+        print(Face.objects.using(self.request.user.first_name))
+        # get person's all faces
+        return Face.objects.using(self.request.user.first_name).filter(person__in=person)
+
+    def perform_create(self, serializer):
+        person = self.__get_person(self.request.user, self.request.data)
+        if len(person) != 1:
+            log.error('No person specified!')
+            raise ValidationError({'FaceViewSet': 'No person specified!'})
+
+        serializer.save(person=person[0], image=None if 'image' not in self.request.data else self.request.data['image'])
+
+    def perform_update(self, serializer):
+        serializer.save(image=None if 'image' not in self.request.data else self.request.data['image'])
+
+    def __get_person(self, company, data):
+        person = Person.objects.using(company.first_name)
+        if 'name' in self.request.data:
+            person = person.filter(name=self.request.data['name'])
+        elif 'userID' in self.request.data:
+            person = person.filter(userID=self.request.data['userID'])
+
+        return [p for p in person]

@@ -2,8 +2,12 @@ from math import pow
 import random
 from ..models import RandomSeed
 
+# https://en.wikipedia.org/wiki/Linear_congruential_generator
 def generate_unique_id(user):
-    # https://en.wikipedia.org/wiki/Linear_congruential_generator
+    '''
+    :param user:  who want to generate the random id
+    :return: a random id generated with user's random seed
+    '''
     module = pow(2, 32)
     a = 1664525
     c = 1013904223
