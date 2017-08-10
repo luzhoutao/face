@@ -102,7 +102,7 @@ class MySQLManager(BaseDBManager):
         conn = pymysql.connect(host=settings.MYSQL_HOST, user=settings.MYSQL_USER, password=settings.MYSQL_PASSWORD,
                                db='company' + db_name)
         cursor = conn.cursor()
-        cursor.execute(Model.generate_mysql())
+        [cursor.execute(sql) for sql in Model.generate_mysql()]
         conn.commit()
         conn.close()
 

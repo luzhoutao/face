@@ -62,7 +62,7 @@ class Person(models.Model):
 ''', ]
 
 def face_file_path(instance, filename):
-    return 'faces/user_{0}/{1}/{2}'.format(instance.person.userID, datetime.now().strftime("%y%m%d"), filename)
+    return 'faces/{0}/user_{1}/{2}/{3}'.format(instance.person.companyID, instance.person.userID, datetime.now().strftime("%y%m%d"), filename)
 
 class Face(models.Model):
     person = models.ForeignKey(Person, on_delete=models.CASCADE, related_name='faces')
@@ -75,6 +75,19 @@ class Face(models.Model):
     def generate_sqlite():
         return ['''CREATE TABLE "company_face" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "created_time" date NOT NULL, "modified_time" date NOT NULL, "person_id" integer NOT NULL REFERENCES "company_person" ("id"), "image" varchar(100) NULL, "feature" varchar(10240) NOT NULL);''',
                 'CREATE INDEX "company_face_person_id_f7b922d6" ON "company_face" ("person_id");', ]
+    @staticmethod
+    def generate_mysql():
+        return ['''CREATE TABLE `company_face` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `feature` varchar(10240) NOT NULL,
+  `image` varchar(100) DEFAULT NULL,
+  `created_time` date NOT NULL,
+  `modified_time` date NOT NULL,
+  `person_id` int(11) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `company_face_person_id_f7b922d6_fk_company_person_id` (`person_id`),
+  CONSTRAINT `company_face_person_id_f7b922d6_fk_company_person_id` FOREIGN KEY (`person_id`) REFERENCES `company_person` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1''', ]
 
     # override to also delete the file in storage
     # http://danceintech.blogspot.sg/2015/01/django-reminder-delete-file-when.html
