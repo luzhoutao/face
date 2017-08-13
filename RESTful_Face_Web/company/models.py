@@ -3,14 +3,58 @@ from django.contrib.auth.models import User
 from django.core.validators import RegexValidator
 # utils
 from datetime import datetime
+import shutil
+import os
 # service
 from service import services
+from RESTful_Face_Web.settings import MEDIA_ROOT
 
 # Create your models here.
 
 class RandomSeed(models.Model):
     holder = models.OneToOneField(User, related_name="random_seed", on_delete=models.CASCADE)
     seed = models.CharField(max_length=50)
+
+
+class App(models.Model):
+    company = models.ForeignKey(User, related_name="apps", on_delete=models.CASCADE)
+    appID = models.CharField(max_length=100, unique=True)
+
+    app_name = models.CharField(max_length=50)
+    is_active = models.BooleanField(default=True)
+
+    def get_status(self):
+        return 'live' if self.is_active else 'closed'
+
+    def get_db_name(self):
+        return self.company.first_name + self.app_name
+
+    def __str__(self):
+        return self.app_name+'('+self.appID+')'
+
+
+def get_target_app(company, appID=None):
+    """Find the target active app of company with the specified appID"""
+    apps = App.objects.filter(company=company, is_active=True).all()
+    if appID != None:
+        apps = apps.filter(appID=appID)
+    return None if len(apps)==0 else apps[0]
+
+class Command(models.Model):
+    company = models.ForeignKey(User, related_name="commands", on_delete=models.CASCADE)
+    app = models.ForeignKey(App, related_name="commands", on_delete=models.CASCADE)
+    serviceID = models.IntegerField()
+    issue_time = models.DateTimeField(auto_now_add=True)
+
+    arguments = models.CharField(max_length=1024, blank=True)
+    results = models.CharField(max_length=1024, blank=True)
+
+    def get_service_name(self):
+        r = [service[1] for service in services.SERVICES if service[0]==self.serviceID]
+        print(r)
+        return r[0] if len(r) == 1 else 'Invalid serviceID !'
+
+#################### Data For Company ###################
 
 class Person(models.Model):
     '''
@@ -21,12 +65,11 @@ class Person(models.Model):
     :param first_name: could be blank
     :param last_name: could be blank
     :param note: could be blank
-    :param companyID: associate with the companyID (will be decaperated)
     :param created_time, modified_time: self explanatory
     
     '''
     userID = models.CharField(max_length=50)
-    companyID = models.CharField(max_length=50)
+    appID = models.CharField(max_length=50)
 
     created_time = models.DateTimeField(auto_now_add=True)
     modified_time = models.DateTimeField(auto_now=True)
@@ -37,13 +80,22 @@ class Person(models.Model):
     last_name = models.CharField(max_length=30, blank=True)
     note = models.CharField(max_length=200, blank=True)
 
+    def __str__(self):
+        return self.name+'('+self.appID+')'
+
+    def get_faces_dir(self):
+        return  "faces/%s/u%s/"%(self.appID, self.userID)
+
+    def delete(self, using=None, keep_parents=False):
+        shutil.rmtree(os.path.join(MEDIA_ROOT, self.get_faces_dir()))
+        super().delete(using=using, keep_parents=keep_parents)
+
     @staticmethod
     def generate_sqlite():
-        return ['CREATE TABLE "company_person" ' \
-                          '("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "userID" varchar(50) NOT NULL, ' \
-                          '"companyID" varchar(50) NOT NULL, "created_time" datetime NOT NULL, "modified_time" datetime NOT NULL, ' \
-                          '"name" varchar(50) NOT NULL UNIQUE, "first_name" varchar(30) NOT NULL, "last_name" varchar(30) NOT NULL, ' \
-                          '"note" varchar(200) NOT NULL, "email" varchar(254) NOT NULL);', ]
+        return ['CREATE TABLE "company_person" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "userID" varchar(50) NOT NULL, '
+                '"appID" varchar(50) NOT NULL, "created_time" datetime NOT NULL, "modified_time" datetime NOT NULL, '
+                '"name" varchar(50) NOT NULL UNIQUE, "email" varchar(254) NOT NULL, "first_name" varchar(30) NOT NULL, "last_name" varchar(30) NOT NULL, '
+                '"note" varchar(200) NOT NULL);', ]
 
     @staticmethod
     def generate_mysql():
@@ -64,7 +116,7 @@ class Person(models.Model):
 ''', ]
 
 def face_file_path(instance, filename):
-    return 'faces/{0}/user_{1}/{2}/{3}'.format(instance.person.companyID, instance.person.userID, datetime.now().strftime("%y%m%d"), filename)
+    return instance.person.get_faces_dir()+'{2}/{3}'.format(instance.person.appID, instance.person.userID, datetime.now().strftime("%y%m%d"), filename)
 
 class Face(models.Model):
     person = models.ForeignKey(Person, on_delete=models.CASCADE, related_name='faces')
@@ -94,21 +146,8 @@ class Face(models.Model):
     # override to also delete the file in storage
     # http://danceintech.blogspot.sg/2015/01/django-reminder-delete-file-when.html
     def delete(self, using=None, keep_parents=False):
+        print('deleting')
         filename = self.image.path
         storage = self.image.storage
         super().delete(using, keep_parents)
         storage.delete(filename)
-
-
-class Command(models.Model):
-    company = models.CharField(max_length=50)
-    serviceID = models.IntegerField()
-    issue_time = models.DateTimeField(auto_now_add=True)
-
-    arguments = models.CharField(max_length=1024, blank=True)
-    results = models.CharField(max_length=1024, blank=True)
-
-    def get_service_name(self):
-        r = [service[1] for service in services.SERVICES if service[0]==self.serviceID]
-        print(r)
-        return r[0] if len(r) == 1 else 'Invalid serviceID !'

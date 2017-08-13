@@ -2,12 +2,14 @@
 from rest_framework import serializers
 # model
 from django.contrib.auth.models import User
-from .models import Person, Face, Command
+from .models import Person, Face, Command, App
 # utils
 from rest_framework.utils import model_meta
 from rest_framework.compat import set_many
 # service
 from service import services
+# validators
+from rest_framework.validators import UniqueValidator
 
 class CompanySerializer(serializers.ModelSerializer):
     companyID = serializers.CharField(source="first_name", read_only=True)
@@ -39,11 +41,11 @@ class PersonSerializer(serializers.HyperlinkedModelSerializer):
 
     class Meta:
         model = Person
-        fields = ('id', 'url', 'userID', 'companyID', 'name', 'email', 'first_name', 'last_name', 'note' ,'created_time', 'modified_time', 'faces')
-        read_only_fields = ('id', 'userID', 'companyID', 'created_time', 'modified_time')
+        fields = ('id', 'url', 'userID', 'appID', 'name','faces')
+        read_only_fields = ('id', 'userID', 'appID')
 
     def create(self, validated_data):
-        return Person.objects.db_manager(validated_data['companyID']).create(**validated_data)
+        return Person.objects.db_manager(validated_data['appID']).create(**validated_data)
 
     def update(self, instance, validated_data):
         serializers.raise_errors_on_nested_writes('update', self, validated_data)
@@ -54,7 +56,7 @@ class PersonSerializer(serializers.HyperlinkedModelSerializer):
                 set_many(instance, attr, value)
             else:
                 setattr(instance, attr, value)
-        instance.save(using=instance.companyID)
+        instance.save(using=instance.appID)
         return instance
 
 class FaceSerializer(serializers.HyperlinkedModelSerializer):
@@ -67,7 +69,7 @@ class FaceSerializer(serializers.HyperlinkedModelSerializer):
 
     # override to user company's database
     def create(self, validated_data):
-        return Face.objects.db_manager(validated_data['person'].companyID).create(**validated_data)
+        return Face.objects.db_manager(validated_data['person'].appID).create(**validated_data)
 
     # override to use company's database
     def update(self, instance, validated_data):
@@ -79,7 +81,7 @@ class FaceSerializer(serializers.HyperlinkedModelSerializer):
                 set_many(instance, attr, value)
             else:
                 setattr(instance, attr, value)
-        instance.save(using=instance.person.companyID)
+        instance.save(using=instance.person.appID)
         return instance
 
 class CommandSerializer(serializers.HyperlinkedModelSerializer):
@@ -87,4 +89,12 @@ class CommandSerializer(serializers.HyperlinkedModelSerializer):
 
     class Meta:
         model = Command
-        fields = ('id', 'url', 'company', 'service', 'issue_time', 'arguments', 'results')
+        fields = ('id', 'url', 'company', 'app', 'service', 'issue_time', 'arguments', 'results')
+
+class AppSerializer(serializers.HyperlinkedModelSerializer):
+    status = serializers.CharField(source="get_status", read_only=True)
+
+    class Meta:
+        model = App
+        fields = ('id', 'url', 'company', 'app_name', 'status', 'appID')
+        read_only_fields = ['company', 'appID']

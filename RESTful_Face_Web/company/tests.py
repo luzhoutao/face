@@ -250,7 +250,7 @@ class PersonTest(TestCase):
         url = os.path.join(self.host, 'face/')
         auth = (user['username'], user['password'])
         data = {'name': person['name']}
-        files = {'image': open(os.path.join(BASE_DIR, 'test.jpeg'), 'rb')}
+        files = {'image': open(os.path.join(BASE_DIR, 'testtest.jpeg'), 'rb')}
         response = requests.post(url, files=files, data=data, auth=auth);
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         face_id = response.json()['id']
@@ -260,3 +260,39 @@ class PersonTest(TestCase):
 
         url = os.path.join(self.host, 'company/' + str(user['id']) + '/')
         requests.delete(url, auth=(admin_name, admin_password))
+
+'''
+1) create company
+response = requests.post(os.path.join(host, c), data={'username': 'luzhoutao', 'password': 'password123'})
+2) list company
+response = requests.get(os.path.join(host, c), auth=('admin','password123'))
+3) retrieve company
+response = requests.get(os.path.join(host, c), auth=('admin','password123'))
+response = requests.get(os.path.join(host, c, '2/'), auth=('luzhoutao','password123'))
+4) update company
+response = requests.put(os.path.join(host, c, '2/'), auth=('luzhoutao','password123'), data={'email': 'luzhoutao@gmail.com'})
+5) create app
+response = requests.post(os.path.join(host, a), auth=('luzhoutao', 'password123'), data={'app_name': 'attendance'})
+6) list and retrieve app
+response = requests.get(os.path.join(host, a), auth=('luzhoutao', 'password123'))
+7) create person
+response = requests.post(os.path.join(host, p), auth=('luzhoutao', 'password123'), data={'appID': '1965874631', 'name': 'person1'})
+8) list and retrieve person
+response = requests.get(os.path.join(host, p), auth=('luzhoutao', 'password123'), data={'appID': '1965874631', })
+9) update person
+response = requests.put(os.path.join(host, p, '1/'), auth=('luzhoutao', 'password123'), data={'appID': '1965874631', 'name': 'Person1'})
+10) create face
+response = requests.post(os.path.join(host, f), files={'image': open('testtest.jpeg', 'rb')}, data={'appID': '1965874631', 'userID': '1092136898'}, auth=('luzhoutao', 'password123'))
+11) list and retrieve face
+response = requests.get(os.path.join(host, f, '1/'), auth=('luzhoutao', 'password123'))
+12) update face
+response = requests.put(os.path.join(host, f, '1/'), files={'image': open('testtest.jpeg', 'rb')}, data={'appID': '1965874631', 'userID': '1092136898'}, auth=('luzhoutao', 'password123'))
+13) delete face
+response = requests.delete(os.path.join(host, f, '1/'), auth=('luzhoutao','password123'), data={'appID': '1965874631'})
+14) delete person
+response = requests.delete(os.path.join(host, p, '1/'), auth=('luzhoutao', 'password123'))
+15) delete app
+response = requests.delete(os.path.join(host, a, '1/'), auth=('luzhoutao', 'password123'))
+16) delete company
+
+'''

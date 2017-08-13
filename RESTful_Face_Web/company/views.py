@@ -1,16 +1,18 @@
 from django.shortcuts import render
 # request and response
 from rest_framework.response import Response
+from rest_framework import status
 from rest_framework.exceptions import ValidationError
 # view
 from rest_framework import viewsets, mixins
 # parser
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser, FileUploadParser
 # serializers
-from .serializers import CompanySerializer, PersonSerializer, FaceSerializer, CommandSerializer
+from .serializers import CompanySerializer, PersonSerializer, FaceSerializer, CommandSerializer, AppSerializer
 # models
 from django.contrib.auth.models import User
-from .models import Person, Face, Command
+from . import models
+from .models import Person, Face, Command, App
 # permissions
 from rest_framework import permissions
 from .permissions import CompanyPermission, CompaniesPermission
@@ -31,6 +33,11 @@ from io import BytesIO
 class CompaniesViewSet(mixins.ListModelMixin,
                        mixins.CreateModelMixin,
                        viewsets.GenericViewSet):
+    """
+    Permission:
+    1) An admin user can list and create companies;
+    2) An anonymous user can create companies.
+    """
     queryset = User.objects.using('default').all()
     serializer_class = CompanySerializer
     permission_classes = (CompaniesPermission, )
@@ -38,19 +45,18 @@ class CompaniesViewSet(mixins.ListModelMixin,
     # override to create dynamic database
     def perform_create(self, serializer):
         serializer.save(first_name=generate_unique_id(get_admin()))
-
-        log.info("Creating db for company %s (%s)..." %(serializer.data['username'], serializer.data['companyID']))
-        myDBManager.create_database(serializer.data['companyID'])
-        myDBManager.create_table(serializer.data['companyID'], Person, 'person')
-        myDBManager.create_table(serializer.data['companyID'], Face, 'face')
-
-        log.info("Company '%s' created !" %(serializer.data['username']))
+        log.info("Company '%s' created !" % (serializer.data['username']))
 
 # due to special permission requirement, splite list/create with CRUD on single object
 class CompanyViewSet(mixins.RetrieveModelMixin,
                      mixins.UpdateModelMixin,
                      mixins.DestroyModelMixin,
                      viewsets.GenericViewSet):
+    """
+    Permission:
+    1) An admin user can retrieve and delete a company;
+    2) An anonymous user can retrieve and update a company.
+    """
     queryset = User.objects.using('default').all()
     serializer_class = CompanySerializer
     permission_classes = (CompanyPermission, )
@@ -66,63 +72,120 @@ class CompanyViewSet(mixins.RetrieveModelMixin,
 
     # override to do CASCADE delete and drop the database
     def perform_destroy(self, instance):
-        persons = Person.objects.filter(companyID=instance.first_name)
-        [person.delete() for person in persons]
+        apps = App.objects.filter(company=instance)
+        for app in apps:
+            persons = Person.objects.using(app.appID)
+            [person.delete() for person in persons]  # this will delete the image file
 
-        myDBManager.drop_database(instance.first_name)
-        log.info("Company '%s' destroyed!" % (instance.username))
-
+            myDBManager.drop_database(app.appID)   #  this will delete the database file
+            # app, commands will be deleted automatically
         instance.delete()
 
+class AppViewSet(mixins.ListModelMixin,
+                 mixins.CreateModelMixin,
+                 mixins.RetrieveModelMixin,
+                 mixins.DestroyModelMixin,
+                 viewsets.GenericViewSet):
+    """
+    Permissions:
+    1) An admin user can list and retrieve all apps;
+    2) An company user can list, retrieve, create, update and delete his own apps.
+    """
+    serializer_class = AppSerializer
+    permission_classes = (permissions.IsAuthenticated, )
+
+    def get_queryset(self):
+        return App.objects.filter(company=self.request.user)
+
+    def perform_create(self, serializer):
+        app = serializer.save(company=self.request.user, appID=generate_unique_id(get_admin()))
+
+        myDBManager.create_database(app.appID)
+        myDBManager.create_table(app.appID, Person, 'person')
+        myDBManager.create_table(app.appID, Face, 'face')
+        log.info("Database for app %s of company %s (%s) Created!" % (app.app_name, app.company.username, app.company.first_name))
+
+    def perform_destroy(self, app):
+        # delete the database and mark it as inactive, but keep the instance
+        persons = Person.objects.using(app.appID)
+        [person.delete() for person in persons]
+
+        myDBManager.drop_database(app.appID)
+        app.is_active = False
+        app.save()
+
+
 class PersonViewSet(viewsets.ModelViewSet):
+    """
+    Permissions:
+    Only company it self can list, retrieve, create, update and delete persons.
+    """
     serializer_class = PersonSerializer
     permission_classes = (permissions.IsAuthenticated, )
 
     # override to using specific database
     def get_queryset(self):
-        company = self.request.user
-        return Person.objects.using(company.first_name).all()
+        app = models.get_target_app(self.request.user, appID=self.request.data['appID'] if 'appID' in self.request.data else None)
+        if app==None:
+            raise ValidationError({'Person': 'App Not Found!'})
+        return Person.objects.using(app.appID).all()
 
     # override to pass generated random ID
     def perform_create(self, serializer):
-        serializer.save(companyID=self.request.user.first_name, userID=generate_unique_id(self.request.user), )
-        log.info("Company %s(%s): user %s(%s) created!" % (self.request.user.username, self.request.user.first_name, serializer.data['name'], serializer.data['userID']))
-    
+        app = models.get_target_app(self.request.user, appID=self.request.data['appID'] if 'appID' in self.request.data else None)
+        if app == None:
+            raise ValidationError({'Create Person': 'App Not Found!'})
+        serializer.save(userID=generate_unique_id(self.request.user), appID=app.appID)
+
     # override to do partial update
     def update(self, request, *args, **kwargs):
         person = self.get_object()
         serializer = self.get_serializer(person, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
-        log.info("Company %s(%s): user %s(%s) updated!" % (self.request.user.username, self.request.user.first_name, serializer.data['name'], serializer.data['userID']))
         return Response(serializer.data)
 
+
 class FaceViewSet(viewsets.ModelViewSet):
+    """
+    Permissions:
+    Only company it self can list, retrieve, create, delete and update faces.
+    """
     serializer_class = FaceSerializer
     permission_classes = (permissions.IsAuthenticated, )
     parser_classes = (MultiPartParser, FormParser, JSONParser, FileUploadParser)
 
     def get_queryset(self):
         # get the person
-        person = self.__get_person(self.request.user, self.request.data)
-        print(Face.objects.using(self.request.user.first_name))
+        app = models.get_target_app(self.request.user, appID=self.request.data['appID'] if 'appID' in self.request.data else None)
+        if app==None:
+            raise ValidationError({'Person': 'App not found!'})
+        person = self.__get_person(app, self.request.data)
+
         # get person's all faces
-        return Face.objects.using(self.request.user.first_name).filter(person__in=person)
+        return Face.objects.using(app.appID).filter(person__in=person)
 
     def perform_create(self, serializer):
-        person = self.__get_person(self.request.user, self.request.data)
+        print("creating")
+        app = models.get_target_app(self.request.user,
+                                    appID=self.request.data['appID'] if 'appID' in self.request.data else None)
+        print(app.app_name)
+        if app==None:
+            raise ValidationError({'Create Face', 'App Not Found!'})
+        person = self.__get_person(app, self.request.data)
         if len(person) != 1:
             log.error('No person specified!')
-            raise ValidationError({'FaceViewSet': 'No person specified!'})
+            raise ValidationError({'FaceViewSet': 'Unique person name or id need to be given!'})
 
+        print(person[0].name)
         serializer.save(person=person[0], image=None if 'image' not in self.request.data else self.request.data['image'])
 
     def perform_update(self, serializer):
         serializer.save(image=None if 'image' not in self.request.data else self.request.data['image'])
 
     # filter to get company's faces
-    def __get_person(self, company, data):
-        person = Person.objects.using(company.first_name)
+    def __get_person(self, app, data):
+        person = Person.objects.using(app.appID)
         if 'name' in data:
             person = person.filter(name=data['name'])
         elif 'userID' in self.request.data:
@@ -146,6 +209,10 @@ def log_command(service_config):
 class CommandViewSet(mixins.ListModelMixin,
                      mixins.RetrieveModelMixin,
                      viewsets.GenericViewSet):
+    """
+    Permissions:
+    Both admin and owner can only list and retrieve commands.
+    """
     serializer_class = CommandSerializer
     permission_classes = (permissions.IsAuthenticated, )
 
