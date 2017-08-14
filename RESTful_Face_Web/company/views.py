@@ -1,10 +1,10 @@
-from django.shortcuts import render
 # request and response
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
 # view
 from rest_framework import viewsets, mixins
+from rest_framework.decorators import detail_route, api_view
 # parser
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser, FileUploadParser
 # serializers
@@ -13,34 +13,42 @@ from .serializers import CompanySerializer, PersonSerializer, FaceSerializer, Co
 from django.contrib.auth.models import User
 from . import models
 from .models import Person, Face, Command, App
+from expiring_token.models import ExpiringToken
 # permissions
 from rest_framework import permissions
-from .permissions import CompanyPermission, CompaniesPermission
+from .permissions import CompanyPermission, CompaniesPermission, IsSuperuser, TokenPermission
 # logging
 import logging
 log = logging.getLogger(__name__)
 # utils
 from .utils.random_unique_id import generate_unique_id
 from .utils.retrieve_admin import get_admin
-from RESTful_Face_Web.settings import myDBManager
+from RESTful_Face_Web.settings import myDBManager, EXPIRING_TOKEN_LIFESPAN
 from rest_framework.decorators import list_route
+import datetime
+from django.utils import timezone
 # service
 from service import services
-# image
-from PIL import Image
-from io import BytesIO
 
 class CompaniesViewSet(mixins.ListModelMixin,
                        mixins.CreateModelMixin,
                        viewsets.GenericViewSet):
     """
-    Permission:
-    1) An admin user can list and create companies;
-    2) An anonymous user can create companies.
+    list:
+        Return all the companies.
+        
+    create:
+        Create a new company account.
+        <hr/>
+        parameter
+        - username: the name of your company.
+        - password: for your company account. (Please remember it!)
+        - email: (optional) your company's email address
     """
     queryset = User.objects.using('default').all()
     serializer_class = CompanySerializer
     permission_classes = (CompaniesPermission, )
+    #authentication_classes = (ExpiringTokenAuthentication, )
 
     # override to create dynamic database
     def perform_create(self, serializer):
@@ -53,9 +61,29 @@ class CompanyViewSet(mixins.RetrieveModelMixin,
                      mixins.DestroyModelMixin,
                      viewsets.GenericViewSet):
     """
-    Permission:
-    1) An admin user can retrieve and delete a company;
-    2) An anonymous user can retrieve and update a company.
+    retrieve:
+        Return details about a company. (For admin)
+        
+    update:
+        Update details about a company. (For owner)
+        <hr/>
+        parameter
+        - username: the name of your company.
+        - password: for your company account. (Please remember it!)
+        - email: (optional) your company's email address
+        
+    destroy:
+        Delete a company. All app and static files will also be deleted. (For admin)
+        
+    token:
+        Generate expiring token for a company. <i>Default expiring time is 30 days.</i>
+        <hr/>
+        parameter
+        - days: (optional, integer) lasting days
+        - seconds: (optional, integer) lasting seconds
+        
+    authorization:
+        Make a company user one of the staffs of this system. (Able to generate token for other companies)
     """
     queryset = User.objects.using('default').all()
     serializer_class = CompanySerializer
@@ -81,20 +109,66 @@ class CompanyViewSet(mixins.RetrieveModelMixin,
             # app, commands will be deleted automatically
         instance.delete()
 
+    @detail_route(methods=['get'], permission_classes=[permissions.IsAdminUser, ])
+    def token(self, request, pk=None):
+        company = self.get_object()
+        print(company)
+        [token.delete() for token in ExpiringToken.objects.filter(user=company) if token.expired()]
+        print("deleted")
+        try:
+            lifespan = datetime.timedelta(seconds=0)
+            if 'days' in request.data:
+                lifespan = lifespan + datetime.timedelta(int(request.data['days']))
+            if 'seconds' in request.data:
+                lifespan = lifespan + datetime.timedelta(int(request.data['seconds']))
+            # default lifespan is set in settings.py
+            if lifespan.total_seconds() == 0:
+                lifespan = EXPIRING_TOKEN_LIFESPAN
+            expired_time = timezone.now() + lifespan
+
+            token = ExpiringToken.objects.get_or_create(user=company)[0]
+            token.expired_time = expired_time
+            token.save()
+
+            return Response({'token': token.key})
+        except:
+            # days, seconds parse error
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
+    @detail_route(methods=['put', 'post'], permission_classes=[IsSuperuser, ])
+    def authorization(self, request, pk=None):
+        staff = self.get_object()
+        staff.is_staff = True
+        staff.save()
+        return Response({'Authorization': staff.username+' has been authorized!'})
+
 class AppViewSet(mixins.ListModelMixin,
                  mixins.CreateModelMixin,
                  mixins.RetrieveModelMixin,
                  mixins.DestroyModelMixin,
                  viewsets.GenericViewSet):
     """
-    Permissions:
-    1) An admin user can list and retrieve all apps;
-    2) An company user can list, retrieve, create, update and delete his own apps.
+    list:
+        Return the list of all created apps.
+    
+    create:
+        Create a new app. (AppID and a independent database will be created automatically.)
+        <hr/>
+        parameter
+        - app_name: the name of the app.
+        
+    retrieve:
+        Return the detail of an app.
+        
+    destroy:
+        Delete an app. Database will also be deleted.
     """
+
     serializer_class = AppSerializer
-    permission_classes = (permissions.IsAuthenticated, )
+    permission_classes = (permissions.IsAuthenticated, TokenPermission)
 
     def get_queryset(self):
+        print(self.request.user, self.request.auth)
         return App.objects.filter(company=self.request.user)
 
     def perform_create(self, serializer):
@@ -115,13 +189,47 @@ class AppViewSet(mixins.ListModelMixin,
         app.save()
 
 
-class PersonViewSet(viewsets.ModelViewSet):
+class PersonViewSet(mixins.ListModelMixin,
+                 mixins.CreateModelMixin,
+                 mixins.RetrieveModelMixin,
+                    mixins.UpdateModelMixin,
+                 mixins.DestroyModelMixin,
+                 viewsets.GenericViewSet):
     """
-    Permissions:
-    Only company it self can list, retrieve, create, update and delete persons.
+    list:
+        Return the list of person in the app.
+        <hr/>
+        parameter:
+        - appID: the target app. (Default to the app created earliest)
+        
+    retrieve:
+        Return the detail of a person in the app.
+        <hr/>
+        parameter:
+        - appID: the target app. (Default to the app created earliest)
+        
+    create:
+        Create a new person in the app. A 'userID' will be automatically generated.
+        <hr/>
+        parameter:
+        - name: person's name
+        - appID: of the app where the person will be stored.
+        
+    update:
+        Update the detail of the person.
+        <hr/>
+        parameter:
+        - appID: the target app. (Default to the app created earliest)
+        - name: person's name
+        
+    delete:
+        Delete a person from the app.
+        <hr/>
+        parameter:
+        - appID: the target app. (Default to the app created earliest)
     """
     serializer_class = PersonSerializer
-    permission_classes = (permissions.IsAuthenticated, )
+    permission_classes = (permissions.IsAuthenticated, TokenPermission)
 
     # override to using specific database
     def get_queryset(self):
@@ -135,6 +243,7 @@ class PersonViewSet(viewsets.ModelViewSet):
         app = models.get_target_app(self.request.user, appID=self.request.data['appID'] if 'appID' in self.request.data else None)
         if app == None:
             raise ValidationError({'Create Person': 'App Not Found!'})
+        print('person', serializer.is_valid())
         serializer.save(userID=generate_unique_id(self.request.user), appID=app.appID)
 
     # override to do partial update
@@ -148,11 +257,42 @@ class PersonViewSet(viewsets.ModelViewSet):
 
 class FaceViewSet(viewsets.ModelViewSet):
     """
-    Permissions:
-    Only company it self can list, retrieve, create, delete and update faces.
+    list:
+        Return a list of faces.
+        <hr/>
+        parameter:
+        - appID: the target app. (Default to the app created earliest)
+        - name: person's name. (Default to all persons)
+        - userID: person's userID. (Default to all persons)
+        
+    retrieve:
+        Return the detail of a face.
+        <hr/>
+        parameter:
+        - appID: the target app. (Default to the app created earliest)
+        - name: person's name. (Default to all persons)
+        - userID: person's userID. (Default to all persons)
+        
+    create:
+        Create a face for a person.
+        <hr/>
+        parameter:
+        - appID: the target app. (Default to the app created earliest)
+        - name: person's name. (Default to all persons)
+        - userID: person's userID. (Default to all persons)
+        - image: the face image
+        
+    update:
+        update a face for person
+        <hr/>
+        parameter:
+        - appID: the target app. (Default to the app created earliest)
+        - name: person's name. (Default to all persons)
+        - userID: person's userID. (Default to all persons)
+        - image: the face image
     """
     serializer_class = FaceSerializer
-    permission_classes = (permissions.IsAuthenticated, )
+    permission_classes = (permissions.IsAuthenticated, TokenPermission)
     parser_classes = (MultiPartParser, FormParser, JSONParser, FileUploadParser)
 
     def get_queryset(self):
@@ -198,8 +338,10 @@ def log_command(service_config):
     service = service_config[2]()
     def decorator(func):
         def func_wrapper(self, request):
+            if 'appID' not in request.data or len(App.objects.filter(appID=request.data['appID']))==0:
+                raise ValidationError({'Service': 'App Not Found'})
             # generate the command
-            ret = Command.objects.create(company=request.user.first_name, serviceID=service_config[0])
+            ret = Command.objects.create(company=request.user, app=App.objects.filter(appID=request.data['appID'])[0], serviceID=service_config[0])
             ret.save()
             log.info("Service [%s] history has been stored!" %(service_config[1]))
             return func(self, request, service)
@@ -210,8 +352,14 @@ class CommandViewSet(mixins.ListModelMixin,
                      mixins.RetrieveModelMixin,
                      viewsets.GenericViewSet):
     """
-    Permissions:
-    Both admin and owner can only list and retrieve commands.
+    list:
+        Return all comments of the company.
+        
+    retrieve:
+        Return the detail of the company.
+        
+    quality_check:
+        Check the quality of uploaded image.
     """
     serializer_class = CommandSerializer
     permission_classes = (permissions.IsAuthenticated, )
@@ -219,22 +367,21 @@ class CommandViewSet(mixins.ListModelMixin,
     def get_queryset(self):
         if self.request.user.is_superuser:
             commands = Command.objects.all()
-            if 'company' in self.request.data:
-                commands = commands.filter(company=self.request.data['company'])
+            if 'companyID' in self.request.data:
+                commands = commands.filter(company__id=self.request.data['companyID'])
             return commands
         else:
-            print(self.request.user)
-            return Command.objects.filter(company=self.request.user.first_name)
+            return Command.objects.filter(company=self.request.user)
 
     # https://www.thecodeship.com/patterns/guide-to-python-function-decorators/
-    @list_route(methods=['post', 'put'])
+    @list_route(methods=['post', ], permission_classes=[TokenPermission, ])
     @log_command(services.QUALITY_CHECK)
     def quality_check(self, request, service):
         results = service.execute()
         log.info('Service: '+services.QUALITY_CHECK[1])
         return Response(results)
 '''
-    @list_route(methods=['post', 'put'])
+    @list_route(methods=['post', 'put'], permission_classes=[TokenPermission, ])
     @log_command(services.LANDMARK_DETECTION)
     def landmark_detection(self, request, service):
         results = service.execute()

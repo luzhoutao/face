@@ -4,6 +4,9 @@ class IsSuperuser(permissions.BasePermission):
     def has_permission(self, request, view):
         return request.user and request.user.is_superuser
 
+    def has_object_permission(self, request, view, obj):
+        return request.user and request.user.is_superuser
+
 class CompaniesPermission(permissions.BasePermission):
     def has_permission(self, request, view):
         anonymous = request.user and request.user.is_anonymous
@@ -32,3 +35,9 @@ class CompanyPermission(permissions.BasePermission):
         return (superuser and (delete or safe)) or (owner and (safe or update))
 
 
+class TokenPermission(permissions.BasePermission):
+    def has_permission(self, request, view):
+        return request.auth!=None
+
+    def has_object_permission(self, request, view, obj):
+        return request.auth!=None

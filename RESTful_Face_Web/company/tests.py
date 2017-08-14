@@ -158,7 +158,7 @@ class CompaniesCRUDTest(TestCase):
 '''
 class PersonTest(TestCase):
 
-    host = 'http://127.0.0.1:9090/'
+    host = 'http://127.0.0.1:8000/'
 
     def test_anonymous_cannot_access_person(self):
         url = os.path.join(self.host, 'person/')

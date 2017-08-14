@@ -8,7 +8,6 @@ import os
 # service
 from service import services
 from RESTful_Face_Web.settings import MEDIA_ROOT
-
 # Create your models here.
 
 class RandomSeed(models.Model):
@@ -31,7 +30,6 @@ class App(models.Model):
 
     def __str__(self):
         return self.app_name+'('+self.appID+')'
-
 
 def get_target_app(company, appID=None):
     """Find the target active app of company with the specified appID"""
@@ -74,7 +72,7 @@ class Person(models.Model):
     created_time = models.DateTimeField(auto_now_add=True)
     modified_time = models.DateTimeField(auto_now=True)
 
-    name = models.CharField(max_length=50, unique=True, validators=[RegexValidator(r'^[\w.@+-]+$')])
+    name = models.CharField(max_length=50, validators=[RegexValidator(r'^[\w.@+-]+$')])
     email = models.EmailField(blank=True)
     first_name = models.CharField(max_length=30, blank=True)
     last_name = models.CharField(max_length=30, blank=True)
@@ -92,10 +90,11 @@ class Person(models.Model):
 
     @staticmethod
     def generate_sqlite():
-        return ['CREATE TABLE "company_person" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "userID" varchar(50) NOT NULL, '
-                '"appID" varchar(50) NOT NULL, "created_time" datetime NOT NULL, "modified_time" datetime NOT NULL, '
-                '"name" varchar(50) NOT NULL UNIQUE, "email" varchar(254) NOT NULL, "first_name" varchar(30) NOT NULL, "last_name" varchar(30) NOT NULL, '
-                '"note" varchar(200) NOT NULL);', ]
+        return ['CREATE TABLE "company_person" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT,'
+                ' "userID" varchar(50) NOT NULL, "appID" varchar(50) NOT NULL, '
+                '"created_time" datetime NOT NULL, "modified_time" datetime NOT NULL, '
+                '"email" varchar(254) NOT NULL, "first_name" varchar(30) NOT NULL, '
+                '"last_name" varchar(30) NOT NULL, "note" varchar(200) NOT NULL, "name" varchar(50) NOT NULL);', ]
 
     @staticmethod
     def generate_mysql():
@@ -121,7 +120,7 @@ def face_file_path(instance, filename):
 class Face(models.Model):
     person = models.ForeignKey(Person, on_delete=models.CASCADE, related_name='faces')
     feature = models.CharField(max_length=10240, blank=True)
-    image = models.ImageField(blank=True, null=True, upload_to=face_file_path)
+    image = models.ImageField(upload_to=face_file_path)
     created_time = models.DateField(auto_now_add=True)
     modified_time = models.DateField(auto_now=True)
 

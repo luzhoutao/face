@@ -41,6 +41,9 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'company',
+    'rest_framework.authtoken',
+    'expiring_token',
+    'rest_framework_swagger',
 ]
 
 MIDDLEWARE = [
@@ -122,7 +125,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Shanghai'
 
 USE_I18N = True
 
@@ -180,6 +183,33 @@ LOGGING = {
         },
     }
 }
+
+# default authentication class
+REST_FRAMEWORK = {
+   'DEFAULT_AUTHENTICATION_CLASSES': (
+       'rest_framework.authentication.BasicAuthentication',
+       'expiring_token.authentication.ExpiringTokenAuthentication',
+   ),
+}
+# The default expiring time of tokens
+EXPIRING_TOKEN_LIFESPAN = datetime.timedelta(days=1)
+
+# swagger doc settings
+SWAGGER_SETTINGS = {
+    "exclude_namespace": [],
+    "api_version": '0.1',
+    'api_path': "/",
+    "enabled_methods": [
+        'get',
+        'post',
+        'put',
+        'delete',
+    ],
+    "api_key": '',
+    "is_authentication": False,
+    "is_superuser": False,
+}
+
 
 from .runtime_db import load_database
 #from .runtime_db.runtime_database import MySQLManager

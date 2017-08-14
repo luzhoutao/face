@@ -5,11 +5,6 @@ from django.contrib.auth.models import User
 from .models import Person, Face, Command, App
 # utils
 from rest_framework.utils import model_meta
-from rest_framework.compat import set_many
-# service
-from service import services
-# validators
-from rest_framework.validators import UniqueValidator
 
 class CompanySerializer(serializers.ModelSerializer):
     companyID = serializers.CharField(source="first_name", read_only=True)
@@ -25,14 +20,12 @@ class CompanySerializer(serializers.ModelSerializer):
         return company
 
     def update(self, instance, validated_data):
+        # TODO test
         serializers.raise_errors_on_nested_writes('update', self, validated_data)
         info = model_meta.get_field_info(instance)
 
         for attr, value in validated_data.items():
-            if attr in info.relations and info.relations[attr].to_many:
-                set_many(instance, attr, value)
-            else:
-                setattr(instance, attr, value)
+            setattr(instance, attr, value)
         instance.save(using='default')
         return instance
 
@@ -48,14 +41,11 @@ class PersonSerializer(serializers.HyperlinkedModelSerializer):
         return Person.objects.db_manager(validated_data['appID']).create(**validated_data)
 
     def update(self, instance, validated_data):
+        # TODO test
         serializers.raise_errors_on_nested_writes('update', self, validated_data)
-        info = model_meta.get_field_info(instance)
 
         for attr, value in validated_data.items():
-            if attr in info.relations and info.relations[attr].to_many:
-                set_many(instance, attr, value)
-            else:
-                setattr(instance, attr, value)
+            setattr(instance, attr, value)
         instance.save(using=instance.appID)
         return instance
 
@@ -77,10 +67,7 @@ class FaceSerializer(serializers.HyperlinkedModelSerializer):
         info = model_meta.get_field_info(instance)
 
         for attr, value in validated_data.items():
-            if attr in info.relations and info.relations[attr].to_many:
-                set_many(instance, attr, value)
-            else:
-                setattr(instance, attr, value)
+            setattr(instance, attr, value)
         instance.save(using=instance.person.appID)
         return instance
 
