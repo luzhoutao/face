@@ -1,5 +1,4 @@
 # retrieve project path settings
-from RESTful_Face_Web import settings
 # database connections
 from django.db import connections
 # system operation
@@ -32,6 +31,7 @@ class BaseDBManager():
 class SQLiteManager(BaseDBManager):
 
     def create_database(self, name):
+        from RESTful_Face_Web import settings
         name = str(name)
         filename = os.path.join(settings.BASE_DIR, 'db_'+name+'.sqlite3')
 
@@ -50,6 +50,7 @@ class SQLiteManager(BaseDBManager):
     def create_table(self, db_name, Model, table_name):
         # initialize the database file
         import sqlite3
+        from RESTful_Face_Web import settings
 
         filename = os.path.join(settings.BASE_DIR, 'db_'+db_name+'.sqlite3')
         conn = sqlite3.connect(filename)
@@ -74,6 +75,8 @@ class SQLiteManager(BaseDBManager):
 class MySQLManager(BaseDBManager):
 
     def create_database(self, name):
+        from RESTful_Face_Web import settings
+
         name = str(name)
 
         # tell Django there is a new mysql database
@@ -98,6 +101,7 @@ class MySQLManager(BaseDBManager):
 
     def create_table(self, db_name, Model, table_name):
         import pymysql
+        from RESTful_Face_Web import settings
         # initializer database
         conn = pymysql.connect(host=settings.MYSQL_HOST, user=settings.MYSQL_USER, password=settings.MYSQL_PASSWORD,
                                db='company' + db_name)
@@ -109,6 +113,7 @@ class MySQLManager(BaseDBManager):
         log.info("Created mysql database %s and initialize a table '%s'!" % (db_name, table_name))
 
     def drop_database(self, name):
+        from RESTful_Face_Web import settings
         print("dropping database, ", name)
         # delete setting files
         try:
@@ -131,6 +136,7 @@ class MySQLManager(BaseDBManager):
         log.info("Database company%s has been dropped !" % (name))
 
 def save_db_settings_to_file(setting_str, name):
+    from RESTful_Face_Web import settings
     filename = os.path.join(settings.DB_SETTINGS_BASE_DIR, name+'.dbconf')
     file = open(filename, 'w+')
     file.write(setting_str)

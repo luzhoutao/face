@@ -380,6 +380,13 @@ class CommandViewSet(mixins.ListModelMixin,
         results = service.execute()
         log.info('Service: '+services.QUALITY_CHECK[1])
         return Response(results)
+
+    @list_route(methods=['post', ], permission_classes=[TokenPermission, ])
+    @log_command(services.FACE_DETECTION)
+    def face_detection(self,request, service):
+        results = service.execute()
+        log.info("Service: "+services.FACE_DETECTION[1])
+        return Response(results)
 '''
     @list_route(methods=['post', 'put'], permission_classes=[TokenPermission, ])
     @log_command(services.LANDMARK_DETECTION)

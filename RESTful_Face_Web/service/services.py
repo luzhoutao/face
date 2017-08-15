@@ -3,6 +3,7 @@ This file defines all the services available in this system.
 (service ID, service Name)
 '''
 from .quality_check import QualityCheckService
+from .face_detection import FaceDetectionService
 
 SERVICES = []
 
@@ -23,3 +24,6 @@ SERVICES.append(FEATURE_EXTRACTION)
 
 ENHANCEMENT = (5, 'Enhancement', None)
 SERVICES.append(ENHANCEMENT)
+
+FACE_DETECTION = (6, 'Face Detection', FaceDetectionService)
+SERVICES.append(FACE_DETECTION)
