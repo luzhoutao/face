@@ -28,6 +28,10 @@ class App(models.Model):
     def get_db_name(self):
         return self.company.first_name + self.app_name
 
+    def delete(self, using=None, keep_parents=False):
+        shutil.rmtree(os.path.join(MEDIA_ROOT, 'faces', self.appID))
+        super().delete(using=using, keep_parents=keep_parents)
+
     def __str__(self):
         return self.app_name+'('+self.appID+')'
 
@@ -101,7 +105,7 @@ class Person(models.Model):
         return ['''CREATE TABLE `company_person` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `userID` varchar(50) NOT NULL,
-  `companyID` varchar(50) NOT NULL,
+  `appID` varchar(50) NOT NULL,
   `created_time` datetime NOT NULL,
   `modified_time` datetime NOT NULL,
   `name` varchar(50) NOT NULL,
@@ -109,8 +113,7 @@ class Person(models.Model):
   `first_name` varchar(30) NOT NULL,
   `last_name` varchar(30) NOT NULL,
   `note` varchar(200) NOT NULL,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `name` (`name`)
+  PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 ''', ]
 
@@ -133,7 +136,7 @@ class Face(models.Model):
         return ['''CREATE TABLE `company_face` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `feature` varchar(10240) NOT NULL,
-  `image` varchar(100) DEFAULT NULL,
+  `image` varchar(100) NOT NULL,
   `created_time` date NOT NULL,
   `modified_time` date NOT NULL,
   `person_id` int(11) NOT NULL,

@@ -25,7 +25,7 @@ SECRET_KEY = 'jm%z1b74z0b4x&jwwx3@nr4oe_8wuxp0+u-7=%o%%19wb00rq*'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '172.29.34.77']
 
 # Admin User
 ADMIN_NAME = 'admin'
@@ -41,7 +41,6 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'company',
-    'rest_framework.authtoken',
     'expiring_token',
     'rest_framework_swagger',
 ]
@@ -85,22 +84,22 @@ MYSQL_PASSWORD = 'jt1330'
 MYSQL_HOST = 'localhost'
 DB_SETTINGS_BASE_DIR = os.path.join(BASE_DIR, 'RESTful_Face_Web/runtime_db/database_settings')
 DATABASES = {
-    #'default': {
-    #    'ENGINE': 'django.db.backends.mysql',
-    #    'USER': 'RESTful_Face_API',
-    #    'PASSWORD': 'jt1330',
-    #     'NAME': 'Admin',
-    #    'HOST': 'localhost',
-    #    'PORT': '3306',
-    #},
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
-    }
+        'ENGINE': 'django.db.backends.mysql',
+        'USER': 'RESTful_Face_API',
+        'PASSWORD': 'jt1330',
+         'NAME': 'Admin',
+        'HOST': 'localhost',
+        'PORT': '3306',
+    },
+    #'default': {
+    #    'ENGINE': 'django.db.backends.sqlite3',
+    #    'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+    #}
 
 }
 
-
+STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 # Password validation
 # https://docs.djangoproject.com/en/1.11/ref/settings/#auth-password-validators
 
@@ -194,25 +193,8 @@ REST_FRAMEWORK = {
 # The default expiring time of tokens
 EXPIRING_TOKEN_LIFESPAN = datetime.timedelta(days=1)
 
-# swagger doc settings
-SWAGGER_SETTINGS = {
-    "exclude_namespace": [],
-    "api_version": '0.1',
-    'api_path': "/",
-    "enabled_methods": [
-        'get',
-        'post',
-        'put',
-        'delete',
-    ],
-    "api_key": '',
-    "is_authentication": False,
-    "is_superuser": False,
-}
-
-
 from .runtime_db import load_database
-#from .runtime_db.runtime_database import MySQLManager
-#myDBManager = MySQLManager()
-from .runtime_db.runtime_database import SQLiteManager
-myDBManager = SQLiteManager()
+from .runtime_db.runtime_database import MySQLManager
+myDBManager = MySQLManager()
+#from .runtime_db.runtime_database import SQLiteManager
+#myDBManager = SQLiteManager()

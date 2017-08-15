@@ -34,16 +34,22 @@ class CompaniesViewSet(mixins.ListModelMixin,
                        mixins.CreateModelMixin,
                        viewsets.GenericViewSet):
     """
+    [See spec.](https://drive.google.com/open?id=0B09e6v5cDBila0x1bkJzMFRuSDg)
+
     list:
         Return all the companies.
         
     create:
         Create a new company account.
-        <hr/>
+
         parameter
+
         - username: the name of your company.
+
         - password: for your company account. (Please remember it!)
+
         - email: (optional) your company's email address
+
     """
     queryset = User.objects.using('default').all()
     serializer_class = CompanySerializer
@@ -61,6 +67,8 @@ class CompanyViewSet(mixins.RetrieveModelMixin,
                      mixins.DestroyModelMixin,
                      viewsets.GenericViewSet):
     """
+    [See spec.](https://drive.google.com/open?id=0B09e6v5cDBila0x1bkJzMFRuSDg)
+
     retrieve:
         Return details about a company. (For admin)
         
@@ -100,12 +108,13 @@ class CompanyViewSet(mixins.RetrieveModelMixin,
 
     # override to do CASCADE delete and drop the database
     def perform_destroy(self, instance):
-        apps = App.objects.filter(company=instance)
+        apps = App.objects.filter(company=instance, is_active=True)
         for app in apps:
             persons = Person.objects.using(app.appID)
             [person.delete() for person in persons]  # this will delete the image file
 
             myDBManager.drop_database(app.appID)   #  this will delete the database file
+            app.delete()
             # app, commands will be deleted automatically
         instance.delete()
 
@@ -148,6 +157,8 @@ class AppViewSet(mixins.ListModelMixin,
                  mixins.DestroyModelMixin,
                  viewsets.GenericViewSet):
     """
+    [See spec.](https://drive.google.com/open?id=0B09e6v5cDBila0x1bkJzMFRuSDg)
+
     list:
         Return the list of all created apps.
     
@@ -184,6 +195,8 @@ class AppViewSet(mixins.ListModelMixin,
         persons = Person.objects.using(app.appID)
         [person.delete() for person in persons]
 
+        shutil.rmtree(os.path.join(MEDIA_ROOT, 'faces', app.appID))
+
         myDBManager.drop_database(app.appID)
         app.is_active = False
         app.save()
@@ -196,6 +209,8 @@ class PersonViewSet(mixins.ListModelMixin,
                  mixins.DestroyModelMixin,
                  viewsets.GenericViewSet):
     """
+    [See spec.](https://drive.google.com/open?id=0B09e6v5cDBila0x1bkJzMFRuSDg)
+
     list:
         Return the list of person in the app.
         <hr/>
@@ -257,6 +272,8 @@ class PersonViewSet(mixins.ListModelMixin,
 
 class FaceViewSet(viewsets.ModelViewSet):
     """
+    [See spec.](https://drive.google.com/open?id=0B09e6v5cDBila0x1bkJzMFRuSDg)
+
     list:
         Return a list of faces.
         <hr/>
@@ -352,6 +369,8 @@ class CommandViewSet(mixins.ListModelMixin,
                      mixins.RetrieveModelMixin,
                      viewsets.GenericViewSet):
     """
+    [See spec.](https://drive.google.com/open?id=0B09e6v5cDBila0x1bkJzMFRuSDg)
+
     list:
         Return all comments of the company.
         
