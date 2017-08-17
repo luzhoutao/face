@@ -23,12 +23,19 @@ log = logging.getLogger(__name__)
 # utils
 from .utils.random_unique_id import generate_unique_id
 from .utils.retrieve_admin import get_admin
-from RESTful_Face_Web.settings import myDBManager, EXPIRING_TOKEN_LIFESPAN
+from RESTful_Face_Web.settings import EXPIRING_TOKEN_LIFESPAN
 from rest_framework.decorators import list_route
 import datetime
 from django.utils import timezone
 # service
 from service import services
+
+from RESTful_Face_Web.runtime_db import load_database
+#from .runtime_db.runtime_database import MySQLManager
+#myDBManager = MySQLManager()
+from RESTful_Face_Web.runtime_db.runtime_database import SQLiteManager
+myDBManager = SQLiteManager()
+
 
 class CompaniesViewSet(mixins.ListModelMixin,
                        mixins.CreateModelMixin,
@@ -351,17 +358,27 @@ class FaceViewSet(viewsets.ModelViewSet):
         return [p for p in person]
 
 
-def log_command(service_config):
+def service_bind(service_config):
     service = service_config[2]()
     def decorator(func):
         def func_wrapper(self, request):
+            if not service.is_valid_input_data(request.data):
+                return Response(status=status.HTTP_400_BAD_REQUEST)
+            return func(self, request, service, service_config[0])
+        return func_wrapper
+    return decorator
+
+
+def log_command():
+    def decorator(func):
+        def func_wrapper(self, request, service, serviceID):
             if 'appID' not in request.data or len(App.objects.filter(appID=request.data['appID']))==0:
                 raise ValidationError({'Service': 'App Not Found'})
             # generate the command
-            ret = Command.objects.create(company=request.user, app=App.objects.filter(appID=request.data['appID'])[0], serviceID=service_config[0])
+            app = App.objects.filter(appID=request.data['appID'])[0]
+            ret = Command.objects.create(company=request.user, app=app, serviceID=serviceID)
             ret.save()
-            log.info("Service [%s] history has been stored!" %(service_config[1]))
-            return func(self, request, service)
+            return func(self, request, service, app)
         return func_wrapper
     return decorator
 
@@ -394,16 +411,18 @@ class CommandViewSet(mixins.ListModelMixin,
 
     # https://www.thecodeship.com/patterns/guide-to-python-function-decorators/
     @list_route(methods=['post', ], permission_classes=[TokenPermission, ])
-    @log_command(services.QUALITY_CHECK)
-    def quality_check(self, request, service):
-        results = service.execute()
+    @service_bind(services.QUALITY_CHECK)
+    @log_command()
+    def quality_check(self, request, service, app):
+        results = service.execute(data=request.data)
         log.info('Service: '+services.QUALITY_CHECK[1])
         return Response(results)
 
     @list_route(methods=['post', ], permission_classes=[TokenPermission, ])
-    @log_command(services.FACE_DETECTION)
-    def face_detection(self,request, service):
-        results = service.execute()
+    @service_bind(services.FACE_DETECTION)
+    @log_command()
+    def face_detection(self,request, service, app):
+        results = service.execute(data=request.data)
         log.info("Service: "+services.FACE_DETECTION[1])
         return Response(results)
 '''

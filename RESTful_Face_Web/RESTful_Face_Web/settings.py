@@ -84,18 +84,18 @@ MYSQL_PASSWORD = 'jt1330'
 MYSQL_HOST = 'localhost'
 DB_SETTINGS_BASE_DIR = os.path.join(BASE_DIR, 'RESTful_Face_Web/runtime_db/database_settings')
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'USER': 'RESTful_Face_API',
-        'PASSWORD': 'jt1330',
-         'NAME': 'Admin',
-        'HOST': 'localhost',
-        'PORT': '3306',
-    },
     #'default': {
-    #    'ENGINE': 'django.db.backends.sqlite3',
-    #    'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
-    #}
+    #    'ENGINE': 'django.db.backends.mysql',
+    #    'USER': 'RESTful_Face_API',
+    #    'PASSWORD': 'jt1330',
+    #     'NAME': 'Admin',
+    #    'HOST': 'localhost',
+    #    'PORT': '3306',
+    #},
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+    }
 
 }
 
@@ -193,8 +193,3 @@ REST_FRAMEWORK = {
 # The default expiring time of tokens
 EXPIRING_TOKEN_LIFESPAN = datetime.timedelta(days=1)
 
-from .runtime_db import load_database
-from .runtime_db.runtime_database import MySQLManager
-myDBManager = MySQLManager()
-#from .runtime_db.runtime_database import SQLiteManager
-#myDBManager = SQLiteManager()
