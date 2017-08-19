@@ -32,10 +32,10 @@ import os, shutil
 from service import services
 
 from RESTful_Face_Web.runtime_db import load_database
-from RESTful_Face_Web.runtime_db.runtime_database import MySQLManager
-myDBManager = MySQLManager()
-#from RESTful_Face_Web.runtime_db.runtime_database import SQLiteManager
-#myDBManager = SQLiteManager()
+#from RESTful_Face_Web.runtime_db.runtime_database import MySQLManager
+#myDBManager = MySQLManager()
+from RESTful_Face_Web.runtime_db.runtime_database import SQLiteManager
+myDBManager = SQLiteManager()
 
    
 class CompaniesViewSet(mixins.ListModelMixin,
@@ -306,7 +306,7 @@ class FaceViewSet(viewsets.ModelViewSet):
         - appID: the target app. (Default to the app created earliest)
         - name: person's name. (Default to all persons)
         - userID: person's userID. (Default to all persons)
-        - image: the face image
+        - face: the face image
         
     update:
         update a face for person
@@ -332,10 +332,8 @@ class FaceViewSet(viewsets.ModelViewSet):
         return Face.objects.using(app.appID).filter(person__in=person)
 
     def perform_create(self, serializer):
-        print("creating")
         app = models.get_target_app(self.request.user,
                                     appID=self.request.data['appID'] if 'appID' in self.request.data else None)
-        print(app.app_name)
         if app==None:
             raise ValidationError({'Create Face', 'App Not Found!'})
         person = self.__get_person(app, self.request.data)
@@ -343,7 +341,6 @@ class FaceViewSet(viewsets.ModelViewSet):
             log.error('No person specified!')
             raise ValidationError({'FaceViewSet': 'Unique person name or id need to be given!'})
 
-        print(person[0].name)
         serializer.save(person=person[0], image=None if 'image' not in self.request.data else self.request.data['image'])
 
     def perform_update(self, serializer):
@@ -432,7 +429,7 @@ class CommandViewSet(mixins.ListModelMixin,
     @service_bind(services.RECOGNITION)
     @log_command()
     def recognition(self, request, service, app):
-        results = service.execute(data=request.data, app=app)
+        results = service.execute(request=request, data=request.data, app=app)
         log.info("Service: "+services.RECOGNITION[1])
         return Response(results)
 

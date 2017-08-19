@@ -168,11 +168,11 @@ class Feature(models.Model):
     created_time = models.DateTimeField(auto_now_add=True)
 
     @staticmethod
-    def generate_sqlite(self):
+    def generate_sqlite():
         return ['''CREATE TABLE "company_feature" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "data" varchar(2000) NOT NULL, "name" varchar(50) NOT NULL, "created_time" datetime NOT NULL, "face_id" integer NOT NULL UNIQUE REFERENCES "company_face" ("id"));''', ]
 
     @staticmethod
-    def generate_mysql(self):
+    def generate_mysql():
         return ['''CREATE TABLE `company_feature` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `data` varchar(2000) NOT NULL,

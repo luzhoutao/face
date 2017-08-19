@@ -54,7 +54,7 @@ class FaceSerializer(serializers.HyperlinkedModelSerializer):
 
     class Meta:
         model = Face
-        fields = ('id', 'url', 'person', 'feature', 'created_time', 'modified_time', 'image')
+        fields = ('id', 'url', 'person', 'created_time', 'modified_time', 'image')
         read_only_fields = ('person', )
 
     # override to user company's database

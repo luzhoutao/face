@@ -28,15 +28,19 @@ class FeatureExtractor():
         return self.extractors[name](face)
 
     def extract_pca(self, face):
+        assert (face.size == settings.face_size)
         face_array = np.array(face)
-        assert(np.shape(face_array) is settings.face_size)
 
         W = np.load(settings.PCA_W_PATH)
         return np.dot(W.T, face_array.reshape([-1, 1]))
 
 
     def extract_lda(self, face):
-        pass
+        assert(face.size == settings.face_size)
+        face_array = np.array(face)
+
+        W = np.load(settings.LDA_PCA_W_PATH)
+        return np.dot(W.T, face_array.reshape([-1, 1]))
 
 
 class RecognitionService(BaseService):
@@ -51,48 +55,54 @@ class RecognitionService(BaseService):
         '''
         if 'face' in data:
             face = Image.open(data['face'])
-            return face.size == settings.face_size
+            return tuple(face.size) == tuple(settings.face_size)
         return False
 
     def execute(self, *args, **kwargs):
         assert('data' in kwargs)
         assert('app' in kwargs)
-        image = kwargs['data']['image']
+        image = kwargs['data']['face']
         app = kwargs['app']
+        request = kwargs['request']
 
         # get input data
-        persons = [p for p in Person.object.using(app.appID).all()]
-        faces_per_person = [ [face for face in Face.object.using(app.appID).filter(person=p)] for p in persons]
+        persons = [p for p in Person.objects.using(app.appID).all()]
+        faces_per_person = [ [face for face in Face.objects.using(app.appID).filter(person=p)] for p in persons]
 
         # remove person without face enrolled
         mask = [ len(faces)>0 for faces in faces_per_person]
         persons = np.array(persons)[mask]
         faces_per_person = np.array(faces_per_person)[mask]
 
+        if len(persons) == 0:
+            return {'info': 'No face enrolled!'}
+
         # compute feature of face
-        target_pca = self.extractor.extract_pca(Image.open(image))
+        target_pca = self.extractor.extract_pca(Image.open(image).convert('L'))
+        target_lda = self.extractor.extract_lda(Image.open(image).convert('L'))
+
 
         # retrieve all the feature; if not found, compute it
-        pca_per_person = [np.array([ self.get_face_features(app.appID, face, feature_name=settings.PCA_NAME)
+        pca_per_person = [np.hstack([ self.get_face_features(app.appID, face, feature_name=settings.PCA_NAME)
                               for face in faces])
                           for faces in faces_per_person]
 
         templates = [ np.mean(features, axis=1) for features in pca_per_person ]
 
         # do classification
-        dis = [ linalg.norm(template - target_pca) for template in templates ]
+        dis = [ linalg.norm(template.reshape([-1, 1]) - target_pca.reshape([-1, 1])) for template in templates ]
 
         # claim result
         person = persons[np.argmin(dis)]
-        serializer = PersonSerializer(person)
+        serializer = PersonSerializer(instance=person, context={'request': request})
 
-        return {'person': serializer.data}
+        return {'person': serializer.data, 'dis': np.min(dis)}
 
     def get_face_features(self, appID, face, feature_name):
         result = Feature.objects.using(appID).filter(face=face, name=feature_name)
         if len(result) == 0:  # if not found, calculate and save
-            result = self.extractor.extract(Image.open(face.image))
-            Feature.objects.db_manager(appID).create(face=face, name=feature_name, data=json.dumps(result))
+            result = self.extractor.extract(Image.open(face.image).convert('L'), name=feature_name)
+            Feature.objects.db_manager(appID).create(face=face, name=feature_name, data=json.dumps(result.real.tolist()))
         else:  # if found, read
-            result = json.loads(result[0])
+            result = np.array(json.loads(result[0].data))
         return result # numpy ndarray
