@@ -144,7 +144,6 @@ class Face(models.Model):
     def generate_mysql():
         return ['''CREATE TABLE `company_face` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `feature` varchar(10240) NOT NULL,
   `image` varchar(100) NOT NULL,
   `created_time` date NOT NULL,
   `modified_time` date NOT NULL,
@@ -175,7 +174,7 @@ class Feature(models.Model):
 
     @staticmethod
     def generate_mysql():
-        return ['''CREATE TABLE `company_feature` (
+        return [''' CREATE TABLE `company_feature` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `data` varchar(2000) NOT NULL,
   `name` varchar(50) NOT NULL,
@@ -184,4 +183,4 @@ class Feature(models.Model):
   PRIMARY KEY (`id`),
   UNIQUE KEY `face_id` (`face_id`),
   CONSTRAINT `company_feature_face_id_a66f0874_fk_company_face_id` FOREIGN KEY (`face_id`) REFERENCES `company_face` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1''', ]
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ''', ]
