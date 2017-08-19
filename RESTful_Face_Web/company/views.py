@@ -12,7 +12,7 @@ from .serializers import CompanySerializer, PersonSerializer, FaceSerializer, Co
 # models
 from django.contrib.auth.models import User
 from . import models
-from .models import Person, Face, Command, App
+from .models import Person, Face, Command, App, Feature
 from expiring_token.models import ExpiringToken
 # permissions
 from rest_framework import permissions
@@ -32,12 +32,12 @@ import os, shutil
 from service import services
 
 from RESTful_Face_Web.runtime_db import load_database
-#from .runtime_db.runtime_database import MySQLManager
-#myDBManager = MySQLManager()
-from RESTful_Face_Web.runtime_db.runtime_database import SQLiteManager
-myDBManager = SQLiteManager()
+from RESTful_Face_Web.runtime_db.runtime_database import MySQLManager
+myDBManager = MySQLManager()
+#from RESTful_Face_Web.runtime_db.runtime_database import SQLiteManager
+#myDBManager = SQLiteManager()
 
-
+   
 class CompaniesViewSet(mixins.ListModelMixin,
                        mixins.CreateModelMixin,
                        viewsets.GenericViewSet):
@@ -196,6 +196,7 @@ class AppViewSet(mixins.ListModelMixin,
         myDBManager.create_database(app.appID)
         myDBManager.create_table(app.appID, Person, 'person')
         myDBManager.create_table(app.appID, Face, 'face')
+        myDBManager.create_table(app.appID, Feature, 'feature')
         log.info("Database for app %s of company %s (%s) Created!" % (app.app_name, app.company.username, app.company.first_name))
 
     def perform_destroy(self, app):

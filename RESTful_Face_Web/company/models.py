@@ -31,7 +31,9 @@ class App(models.Model):
         return self.company.first_name + self.app_name
 
     def delete(self, using=None, keep_parents=False):
-        shutil.rmtree(os.path.join(MEDIA_ROOT, 'faces', self.appID))
+        path = os.path.join(MEDIA_ROOT, 'faces', self.appID)
+        if os.path.exists(path):
+            shutil.rmtree(path)
         super().delete(using=using, keep_parents=keep_parents)
 
     def __str__(self):
@@ -171,4 +173,13 @@ class Feature(models.Model):
 
     @staticmethod
     def generate_mysql(self):
-        return ''
+        return ['''CREATE TABLE `company_feature` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `data` varchar(2000) NOT NULL,
+  `name` varchar(50) NOT NULL,
+  `created_time` datetime NOT NULL,
+  `face_id` int(11) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `face_id` (`face_id`),
+  CONSTRAINT `company_feature_face_id_a66f0874_fk_company_face_id` FOREIGN KEY (`face_id`) REFERENCES `company_face` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1''', ]
