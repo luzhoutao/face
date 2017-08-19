@@ -4,8 +4,9 @@ This file defines all the services available in this system.
 '''
 from .quality_check import QualityCheckService
 from .face_detection import FaceDetectionService
+from .recognition import RecognitionService
 
-SERVICES = []
+from company.models import SERVICES
 
 QUALITY_CHECK = (0, 'Quality Check', QualityCheckService)
 SERVICES.append(QUALITY_CHECK)
@@ -16,7 +17,7 @@ SERVICES.append(LANDMARK_DETECTION)
 ATTRIBUTE_PREDICATE = (2, 'Attribute Predicate', None)
 SERVICES.append(ATTRIBUTE_PREDICATE)
 
-RECOGNITION = (3, 'Recognition', None)
+RECOGNITION = (3, 'Recognition', RecognitionService)
 SERVICES.append(RECOGNITION)
 
 FEATURE_EXTRACTION = (4, 'Feature Extraction', None)

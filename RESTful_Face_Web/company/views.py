@@ -23,10 +23,11 @@ log = logging.getLogger(__name__)
 # utils
 from .utils.random_unique_id import generate_unique_id
 from .utils.retrieve_admin import get_admin
-from RESTful_Face_Web.settings import EXPIRING_TOKEN_LIFESPAN
+from RESTful_Face_Web.settings import EXPIRING_TOKEN_LIFESPAN, MEDIA_ROOT
 from rest_framework.decorators import list_route
 import datetime
 from django.utils import timezone
+import os, shutil
 # service
 from service import services
 
@@ -422,9 +423,18 @@ class CommandViewSet(mixins.ListModelMixin,
     @service_bind(services.FACE_DETECTION)
     @log_command()
     def face_detection(self,request, service, app):
-        results = service.execute(data=request.data)
+        results = service.execute(data=request.data, app=app)
         log.info("Service: "+services.FACE_DETECTION[1])
         return Response(results)
+
+    @list_route(methods=['post', ], permission_classes=[TokenPermission, ])
+    @service_bind(services.RECOGNITION)
+    @log_command()
+    def recognition(self, request, service, app):
+        results = service.execute(data=request.data, app=app)
+        log.info("Service: "+services.RECOGNITION[1])
+        return Response(results)
+
 '''
     @list_route(methods=['post', 'put'], permission_classes=[TokenPermission, ])
     @log_command(services.LANDMARK_DETECTION)

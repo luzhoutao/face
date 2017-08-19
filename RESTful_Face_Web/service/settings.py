@@ -4,5 +4,16 @@ import os
 # landmark
 landmark_model_path = os.path.join(settings.BASE_DIR, 'service', 'shape_predictor_68_face_landmarks.dat')
 
-face_size = [150, 150]
-eye_offset_percentage = [0.2, 0.2]
+# face alignment (keep same as experiment)
+face_size = [150, 170]
+eye_offset_percentage = [0.25, 0.25]
+
+# face feature dimension
+feature_dimension = [100, 1]
+
+# feature names
+PCA_NAME = 'PCA'
+LDA_NAME = 'LDA'
+
+# model path
+PCA_W_PATH = os.path.join(settings.BASE_DIR, 'service', 'pca', 'Wnorm.py')

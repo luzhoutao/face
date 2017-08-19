@@ -8,7 +8,7 @@ import numpy as np
 # math and geometry
 import math
 # global settings
-import settings
+from . import settings
 
 class FaceAligner():
     def __init__(self, dest_sz, offset_pct):
@@ -67,10 +67,11 @@ class FaceAligner():
 class FaceDetectionService(BaseService):
 
     def is_valid_input_data(self, data=None):
-        has_image = data.has_key('image')
+        # check required user input
+        has_image = ('image' in data)
         return has_image
 
-    def execute(self, data):
+    def execute(self, *args, **kwargs):
         """
         :param data: 
             image: the original image
@@ -85,11 +86,16 @@ class FaceDetectionService(BaseService):
             face_array = np.asarray(face)
             face_image = Image.fromarray(face_array, 'RGB')
         """
+
+        # receive the input data
+        assert('data' in kwargs)
+        image_data = kwargs['data']['image']
+
         detector = dlib.get_frontal_face_detector()
         predictor = dlib.shape_predictor(settings.landmark_model_path)
         aligner = FaceAligner(dest_sz=settings.face_size, offset_pct=settings.eye_offset_percentage)
 
-        image = Image.open(data['image']).convert('RGB')
+        image = Image.open(image_data).convert('RGB')
         imarray = np.array(image)
 
         detections  = detector(imarray)
@@ -107,5 +113,3 @@ class FaceDetectionService(BaseService):
             faces.append({'data': data, 'origin_size': origin_size, 'size': settings.face_size})
 
         return {'faces': faces}
-
-

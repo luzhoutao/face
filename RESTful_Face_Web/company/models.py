@@ -6,8 +6,10 @@ from datetime import datetime
 import shutil
 import os
 # service
-from service import services
 from RESTful_Face_Web.settings import MEDIA_ROOT
+# face feature
+from service.settings import feature_dimension
+
 # Create your models here.
 
 class RandomSeed(models.Model):
@@ -42,6 +44,9 @@ def get_target_app(company, appID=None):
         apps = apps.filter(appID=appID)
     return None if len(apps)==0 else apps[0]
 
+
+SERVICES = []
+
 class Command(models.Model):
     company = models.ForeignKey(User, related_name="commands", on_delete=models.CASCADE)
     app = models.ForeignKey(App, related_name="commands", on_delete=models.CASCADE)
@@ -52,7 +57,7 @@ class Command(models.Model):
     results = models.CharField(max_length=1024, blank=True)
 
     def get_service_name(self):
-        r = [service[1] for service in services.SERVICES if service[0]==self.serviceID]
+        r = [service[1] for service in SERVICES if service[0]==self.serviceID]
         print(r)
         return r[0] if len(r) == 1 else 'Invalid serviceID !'
 
@@ -122,15 +127,15 @@ def face_file_path(instance, filename):
 
 class Face(models.Model):
     person = models.ForeignKey(Person, on_delete=models.CASCADE, related_name='faces')
-    feature = models.CharField(max_length=10240, blank=True)
     image = models.ImageField(upload_to=face_file_path)
     created_time = models.DateField(auto_now_add=True)
     modified_time = models.DateField(auto_now=True)
 
     @staticmethod
     def generate_sqlite():
-        return ['''CREATE TABLE "company_face" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "created_time" date NOT NULL, "modified_time" date NOT NULL, "person_id" integer NOT NULL REFERENCES "company_person" ("id"), "image" varchar(100) NULL, "feature" varchar(10240) NOT NULL);''',
-                'CREATE INDEX "company_face_person_id_f7b922d6" ON "company_face" ("person_id");', ]
+        return ['''CREATE TABLE "company_face" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "image" varchar(100) NOT NULL, "created_time" date NOT NULL, "modified_time" date NOT NULL, "person_id" integer NOT NULL REFERENCES "company_person" ("id"));''',
+                '''CREATE INDEX "company_face_person_id_f7b922d6" ON "company_face" ("person_id");''', ]
+
     @staticmethod
     def generate_mysql():
         return ['''CREATE TABLE `company_face` (
@@ -153,3 +158,17 @@ class Face(models.Model):
         storage = self.image.storage
         super().delete(using, keep_parents)
         storage.delete(filename)
+
+class Feature(models.Model):
+    face = models.OneToOneField(Face, on_delete=models.CASCADE)
+    data = models.CharField(max_length=2000) # use json dump
+    name = models.CharField(max_length=50) # the name of feature
+    created_time = models.DateTimeField(auto_now_add=True)
+
+    @staticmethod
+    def generate_sqlite(self):
+        return ['''CREATE TABLE "company_feature" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "data" varchar(2000) NOT NULL, "name" varchar(50) NOT NULL, "created_time" datetime NOT NULL, "face_id" integer NOT NULL UNIQUE REFERENCES "company_face" ("id"));''', ]
+
+    @staticmethod
+    def generate_mysql(self):
+        return ''
