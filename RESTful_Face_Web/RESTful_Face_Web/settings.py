@@ -193,3 +193,4 @@ REST_FRAMEWORK = {
 # The default expiring time of tokens
 EXPIRING_TOKEN_LIFESPAN = datetime.timedelta(days=1)
 
+from RESTful_Face_Web.runtime_db import load_database

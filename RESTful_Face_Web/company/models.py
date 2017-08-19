@@ -31,7 +31,7 @@ class App(models.Model):
         return self.company.first_name + self.app_name
 
     def delete(self, using=None, keep_parents=False):
-        path = os.path.join(MEDIA_ROOT, 'faces', self.appID)
+        path = os.path.join(MEDIA_ROOT, 'faces', str(self.appID))
         if os.path.exists(path):
             shutil.rmtree(path)
         super().delete(using=using, keep_parents=keep_parents)
@@ -96,7 +96,9 @@ class Person(models.Model):
         return  "faces/%s/u%s/"%(self.appID, self.userID)
 
     def delete(self, using=None, keep_parents=False):
-        shutil.rmtree(os.path.join(MEDIA_ROOT, self.get_faces_dir()))
+        path = os.path.join(MEDIA_ROOT, self.get_faces_dir())
+        if os.path.exists(path):
+            shutil.rmtree(path)
         super().delete(using=using, keep_parents=keep_parents)
 
     @staticmethod
