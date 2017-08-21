@@ -79,20 +79,25 @@ class RecognitionService(BaseService):
         if len(persons) == 0:
             return {'info': 'No face enrolled!'}
 
+        '''
         # compute feature of face
         target_pca = self.extractor.extract_pca(Image.open(image).convert('L'))
-        target_lda = self.extractor.extract_lda(Image.open(image).convert('L'))
-
-
         # retrieve all the feature; if not found, compute it
         pca_per_person = [np.hstack([ self.get_face_features(app.appID, face, feature_name=settings.PCA_NAME)
                               for face in faces])
                           for faces in faces_per_person]
-
         templates = [ np.mean(features, axis=1) for features in pca_per_person ]
-
         # do classification
         dis = [ linalg.norm(template.reshape([-1, 1]) - target_pca.reshape([-1, 1])) for template in templates ]
+        '''
+
+        # do lda recognition
+        target_lda = self.extractor.extract_lda(Image.open(image).convert('L'))
+        lda_per_person = [np.hstack([ self.get_face_features(app.appID, face, feature_name=settings.LDA_NAME)
+                              for face in faces])
+                          for faces in faces_per_person]
+        templates = [ np.mean(features, axis=1) for features in lda_per_person ]
+        dis = [ linalg.norm(template.reshape([-1, 1]) - target_lda.reshape([-1, 1])) for template in templates ]
 
         # claim result
         person = persons[np.argmin(dis)]
