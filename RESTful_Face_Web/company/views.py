@@ -31,11 +31,12 @@ import os, shutil
 # service
 from service import services
 
+import uwsgi
 from RESTful_Face_Web.runtime_db import load_database
-#from RESTful_Face_Web.runtime_db.runtime_database import MySQLManager
-#myDBManager = MySQLManager()
-from RESTful_Face_Web.runtime_db.runtime_database import SQLiteManager
-myDBManager = SQLiteManager()
+from RESTful_Face_Web.runtime_db.runtime_database import MySQLManager
+myDBManager = MySQLManager()
+#from RESTful_Face_Web.runtime_db.runtime_database import SQLiteManager
+#myDBManager = SQLiteManager()
 
    
 class CompaniesViewSet(mixins.ListModelMixin,
@@ -198,6 +199,7 @@ class AppViewSet(mixins.ListModelMixin,
         myDBManager.create_table(app.appID, Face, 'face')
         myDBManager.create_table(app.appID, Feature, 'feature')
         log.info("Database for app %s of company %s (%s) Created!" % (app.app_name, app.company.username, app.company.first_name))
+        uwsgi.reload()
 
     def perform_destroy(self, app):
         # delete the database and mark it as inactive, but keep the instance

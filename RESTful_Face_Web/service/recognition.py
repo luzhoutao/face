@@ -30,6 +30,7 @@ class FeatureExtractor():
     def extract_pca(self, face):
         assert (face.size == settings.face_size)
         face_array = np.array(face)
+        face.close()
 
         W = np.load(settings.PCA_W_PATH)
         return np.dot(W.T, face_array.reshape([-1, 1]))
@@ -38,6 +39,7 @@ class FeatureExtractor():
     def extract_lda(self, face):
         assert(face.size == settings.face_size)
         face_array = np.array(face)
+        face.close()
 
         W = np.load(settings.LDA_PCA_W_PATH)
         return np.dot(W.T, face_array.reshape([-1, 1]))
