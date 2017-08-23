@@ -163,7 +163,7 @@ class Face(models.Model):
         storage.delete(filename)
 
 class Feature(models.Model):
-    face = models.OneToOneField(Face, on_delete=models.CASCADE)
+    face = models.ForeignKey(Face, related_name='features', on_delete=models.CASCADE)
     data = models.CharField(max_length=2000) # use json dump
     name = models.CharField(max_length=50) # the name of feature
     created_time = models.DateTimeField(auto_now_add=True)

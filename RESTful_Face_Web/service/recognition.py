@@ -1,6 +1,5 @@
 from .base_service import BaseService
 from . import settings
-from .settings import LDA_NAME, PCA_NAME, PCA_W_PATH
 import numpy as np
 from numpy import linalg
 # models
@@ -10,12 +9,16 @@ from company.serializers import PersonSerializer
 from PIL import Image
 # string-list convertor
 import json
+# hog feature
+from skimage import feature
+# lbp feature
+from skimage.feature import local_binary_pattern
 
 class FeatureExtractor():
     extractors = {}
     def __init__(self):
-        self.extractors[settings.PCA_NAME] = self.extract_pca
-        self.extractors[settings.LDA_NAME] = self.extract_lda
+        self.extractors[settings.pca_name] = self.extract_pca
+        self.extractors[settings.lda_name] = self.extract_lda
 
     def extract(self, face, name):
         '''
@@ -32,8 +35,9 @@ class FeatureExtractor():
         face_array = np.array(face)
         face.close()
 
-        W = np.load(settings.PCA_W_PATH)
-        return np.dot(W.T, face_array.reshape([-1, 1]))
+        mean = np.load(settings.pca_mean_path)
+        W = np.load(settings.pca_w_path)[:, :settings.pca_k]
+        return np.dot(W.T, face_array.reshape([-1, 1]) - mean)  # 206 x 1
 
 
     def extract_lda(self, face):
@@ -41,9 +45,40 @@ class FeatureExtractor():
         face_array = np.array(face)
         face.close()
 
-        W = np.load(settings.LDA_PCA_W_PATH)
-        return np.dot(W.T, face_array.reshape([-1, 1]))
+        mean = np.load(settings.lda_mean_path)
+        W = np.load(settings.lda_w_path)
+        return np.dot(W.T, face_array.reshape([-1, 1]) - mean) # 257 x 1
 
+    def extract_lbp(self, face):
+        assert(face.size == settings.face_size)
+        face_array = np.array(face)
+        face.close()
+
+        # extract lbp descriptor
+        [per_width, per_height] = [int(settings.face_size[0] / settings.lbp_regions_num[0]),
+                                   int(settings.face_size[1] / settings.lbp_regions_num[1])]
+        regions = [face_array[r * per_height:(r + 1) * per_height, c * per_width:(c + 1) * per_width] for c in
+                   range(settings.lbp_regions_num[0]) for r in range(settings.lbp_regions_num[1])]
+
+        patterns = [local_binary_pattern(region, settings.lbp_neighbors, settings.lbp_radius, settings.lbp_method) for region in regions]
+
+        bin_range = int(np.ceil(np.max(patterns)))
+        hists = [np.histogram(pattern.ravel(), bins=bin_range)[0] for pattern in patterns]  # ? normalize
+        feature = np.vstack(hists).reshape([-1, 1])  # row - region , column - labels
+
+        # use lda to do dimensionality reduction
+        w = np.load(settings.lbp_lda_w_path)
+        return np.dot(w.T, feature) # 257 x 1
+
+
+    def extract_hog(self, face):
+        assert(face.size == settings.face_size)
+        face_array = np.array(face)
+        face.close()
+
+        hog = feature.hog(face_array, orientations=settings.hog_ori, pixels_per_cell=settings.hog_cell, cells_per_block=settings.hog_region)
+
+        return hog.reshape([-1, 1]) # 200 x 1
 
 class RecognitionService(BaseService):
     extractor = FeatureExtractor()

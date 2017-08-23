@@ -363,20 +363,22 @@ def service_bind(service_config):
     service = service_config[2]()
     def decorator(func):
         def func_wrapper(self, request):
+            # validation service input
             if not service.is_valid_input_data(request.data):
                 return Response(status=status.HTTP_400_BAD_REQUEST)
-            return func(self, request, service, service_config[0])
+            # find the app
+            if 'appID' not in request.data or len(App.objects.filter(company=request.user, appID=request.data['appID']))==0:
+                raise ValidationError({'Service': 'App Not Found'})
+            app = App.objects.filter(appID=request.data['appID'], company=request.user)[0]
+            return func(self, request, service, service_config[0], app)
         return func_wrapper
     return decorator
 
 
 def log_command():
     def decorator(func):
-        def func_wrapper(self, request, service, serviceID):
-            if 'appID' not in request.data or len(App.objects.filter(appID=request.data['appID']))==0:
-                raise ValidationError({'Service': 'App Not Found'})
+        def func_wrapper(self, request, service, serviceID, app):
             # generate the command
-            app = App.objects.filter(appID=request.data['appID'])[0]
             ret = Command.objects.create(company=request.user, app=app, serviceID=serviceID)
             ret.save()
             return func(self, request, service, app)
