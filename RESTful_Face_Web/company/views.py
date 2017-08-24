@@ -12,7 +12,7 @@ from .serializers import CompanySerializer, PersonSerializer, FaceSerializer, Co
 # models
 from django.contrib.auth.models import User
 from . import models
-from .models import Person, Face, Command, App, Feature
+from .models import Person, Face, Command, App, Feature, ClassifierModel
 from expiring_token.models import ExpiringToken
 # permissions
 from rest_framework import permissions
@@ -31,12 +31,12 @@ import os, shutil
 # service
 from service import services
 
-import uwsgi
+#import uwsgi
 from RESTful_Face_Web.runtime_db import load_database
-from RESTful_Face_Web.runtime_db.runtime_database import MySQLManager
-myDBManager = MySQLManager()
-#from RESTful_Face_Web.runtime_db.runtime_database import SQLiteManager
-#myDBManager = SQLiteManager()
+#from RESTful_Face_Web.runtime_db.runtime_database import MySQLManager
+#myDBManager = MySQLManager()
+from RESTful_Face_Web.runtime_db.runtime_database import SQLiteManager
+myDBManager = SQLiteManager()
 
    
 class CompaniesViewSet(mixins.ListModelMixin,
@@ -130,9 +130,7 @@ class CompanyViewSet(mixins.RetrieveModelMixin,
     @detail_route(methods=['get'], permission_classes=[permissions.IsAdminUser, ])
     def token(self, request, pk=None):
         company = self.get_object()
-        print(company)
         [token.delete() for token in ExpiringToken.objects.filter(user=company) if token.expired()]
-        print("deleted")
         try:
             lifespan = datetime.timedelta(seconds=0)
             if 'days' in request.data:
@@ -188,7 +186,6 @@ class AppViewSet(mixins.ListModelMixin,
     permission_classes = (permissions.IsAuthenticated, TokenPermission)
 
     def get_queryset(self):
-        print(self.request.user, self.request.auth)
         return App.objects.filter(company=self.request.user)
 
     def perform_create(self, serializer):
@@ -198,15 +195,18 @@ class AppViewSet(mixins.ListModelMixin,
         myDBManager.create_table(app.appID, Person, 'person')
         myDBManager.create_table(app.appID, Face, 'face')
         myDBManager.create_table(app.appID, Feature, 'feature')
+        myDBManager.create_table(app.appID, ClassifierModel, 'classifier')
         log.info("Database for app %s of company %s (%s) Created!" % (app.app_name, app.company.username, app.company.first_name))
-        uwsgi.reload()
+        #uwsgi.reload()
 
     def perform_destroy(self, app):
         # delete the database and mark it as inactive, but keep the instance
-        persons = Person.objects.using(app.appID)
-        [person.delete() for person in persons]
+        #persons = Person.objects.using(app.appID)
+        #[person.delete() for person in persons]
 
-        shutil.rmtree(os.path.join(MEDIA_ROOT, 'faces', app.appID))
+        face_path = os.path.join(MEDIA_ROOT, 'faces', app.appID)
+        if os.path.exists(face_path):
+            shutil.rmtree(face_path)
 
         myDBManager.drop_database(app.appID)
         app.is_active = False
@@ -269,7 +269,6 @@ class PersonViewSet(mixins.ListModelMixin,
         app = models.get_target_app(self.request.user, appID=self.request.data['appID'] if 'appID' in self.request.data else None)
         if app == None:
             raise ValidationError({'Create Person': 'App Not Found!'})
-        print('person', serializer.is_valid())
         serializer.save(userID=generate_unique_id(self.request.user), appID=app.appID)
 
     # override to do partial update
@@ -344,6 +343,7 @@ class FaceViewSet(viewsets.ModelViewSet):
             raise ValidationError({'FaceViewSet': 'Unique person name or id need to be given!'})
 
         serializer.save(person=person[0], image=None if 'image' not in self.request.data else self.request.data['image'])
+        app.save() # TODO this will update the update_time field in App
 
     def perform_update(self, serializer):
         serializer.save(image=None if 'image' not in self.request.data else self.request.data['image'])

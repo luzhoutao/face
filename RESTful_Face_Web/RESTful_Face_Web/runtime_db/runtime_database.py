@@ -9,6 +9,7 @@ log = logging.getLogger(__name__)
 # abstract class
 from abc import ABCMeta, abstractmethod
 
+from RESTful_Face_Web import settings
 
 # database manager to create on the fly and initialize it !
 # https://stackoverflow.com/questions/6585373/django-multiple-and-dynamic-databases

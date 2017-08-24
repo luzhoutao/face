@@ -3,7 +3,7 @@ from . import settings
 import numpy as np
 from numpy import linalg
 # models
-from company.models import App, Person, Face, Feature
+from company.models import Person, Face, Feature, ClassifierModel
 from company.serializers import PersonSerializer
 # image
 from PIL import Image
@@ -13,24 +13,39 @@ import json
 from skimage import feature
 # lbp feature
 from skimage.feature import local_binary_pattern
+# svm classifier
+from sklearn import svm
+from sklearn.externals import joblib
+# save file
+import tempfile
+from django.core.files import File
+# logging
+import logging
+log = logging.getLogger(__name__)
 
-class FeatureExtractor():
-    extractors = {}
+
+class FeatureExtractor:
+    _extractors = {}
+
     def __init__(self):
-        self.extractors[settings.pca_name] = self.extract_pca
-        self.extractors[settings.lda_name] = self.extract_lda
+        self._extractors[settings.pca_name] = self._pca
+        self._extractors[settings.lda_name] = self._lda
+        self._extractors[settings.hog_name] = self._hog
+        self._extractors[settings.lbp_name] = self._lbp
+        self._extractors['DEFAULT'] = self._default
 
     def extract(self, face, name):
         '''
+        This is the public interface for call the extraction function
         :param face: 
             the Image object of cropped valid face
         :param name: 
             the method the extractor uses
         :return: 
         '''
-        return self.extractors[name](face)
+        return self._extractors[name](face)
 
-    def extract_pca(self, face):
+    def _pca(self, face):
         assert (face.size == settings.face_size)
         face_array = np.array(face)
         face.close()
@@ -40,16 +55,16 @@ class FeatureExtractor():
         return np.dot(W.T, face_array.reshape([-1, 1]) - mean)  # 206 x 1
 
 
-    def extract_lda(self, face):
+    def _lda(self, face):
         assert(face.size == settings.face_size)
         face_array = np.array(face)
         face.close()
 
         mean = np.load(settings.lda_mean_path)
         W = np.load(settings.lda_w_path)
-        return np.dot(W.T, face_array.reshape([-1, 1]) - mean) # 257 x 1
+        return np.dot(W.T, face_array.reshape([-1, 1]) - mean)  # 257 x 1
 
-    def extract_lbp(self, face):
+    def _lbp(self, face):
         assert(face.size == settings.face_size)
         face_array = np.array(face)
         face.close()
@@ -68,20 +83,99 @@ class FeatureExtractor():
 
         # use lda to do dimensionality reduction
         w = np.load(settings.lbp_lda_w_path)
-        return np.dot(w.T, feature) # 257 x 1
+        return np.dot(w.T, feature)  # 257 x 1
 
 
-    def extract_hog(self, face):
+    def _hog(self, face):
         assert(face.size == settings.face_size)
         face_array = np.array(face)
         face.close()
 
         hog = feature.hog(face_array, orientations=settings.hog_ori, pixels_per_cell=settings.hog_cell, cells_per_block=settings.hog_region)
 
-        return hog.reshape([-1, 1]) # 200 x 1
+        return hog.reshape([-1, 1])  # 200 x 1
+
+    def _default(self, face):
+        assert(face.size == settings.face_size)
+        face_array = np.array(face)
+        face.close()
+
+        return None
+
+
+class Classifier():
+    _classifiers = {}
+
+    def __init__(self):
+        self._classifiers[settings.nearest_neighbor_name] = self._nearest_neighbor
+        self._classifiers[settings.svm_name] = self._svm
+        self._classifiers[settings.naive_bayes_name] = self._naive_bayes
+        self._classifiers['DEFAULT'] = self._default
+
+    def classify(self, classifier_name, model_set, feature_name, gallery, probe_feature, ):
+        '''
+        This is the public interface to call all kinds of classifier
+        :param classifier_name: the name of classifier
+        :param model_set: the model set of classifiers
+        :param gallery: te gallery of (features, persons)
+            features[i] is the matrix (2-d array) formed from features of persona[i]'s all faces
+            features[i] is with dimensionality of (d, m) where d is the size of feature per face and m is the number of samples
+            persona[i] is the instance of Person model in company.models
+        :param probe_feature: the feature of the probe image
+            it is a vector of a single feature with size of d
+        :return: 
+            the multi-class classification result - person or person's info.
+        '''
+        return self._classifiers[classifier_name](model_set, feature_name, gallery, probe_feature)
+
+    def _svm(self, model_set, feature_name, gallery, probe_feature):
+        # TODO normalize
+        model = model_set.filter(feature_name=feature_name, name=settings.svm_name)
+
+        retrain = len(model) == 0
+        if not retrain:
+            assert(len(model)==1)
+            retrain = gallery['update_time'] > model[0].modified_time
+
+        print('SVM for %s: retrain[%s]'%(feature_name, 'v' if retrain else 'x'))
+
+        if retrain:
+            features = []
+            labels = []
+            for k, person in enumerate(gallery['person']):
+                features_mat = gallery['feature'][k]
+                feat_num = np.shape(features_mat)[1]
+                features.extend([features_mat[:, i].tolist() for i in range(feat_num)])
+                labels.extend(np.repeat(person.userID, feat_num))
+
+            clf = svm.SVC(C=settings.svm_c, kernel=settings.svm_kernel)
+            clf.fit(features, labels)
+
+        else:
+            clf = joblib.load(model[0].parameter_file)
+
+        person = clf.predict([probe_feature[:, 0].tolist()])
+
+        return {'userID': person}, clf
+
+    def _nearest_neighbor(self, model_set, feature_name, gallery, probe_feature):
+        templates = [ np.mean(features, axis=1) for features in gallery['feature'] ]
+        dis = [ linalg.norm(template.reshape([-1, 1]) - probe_feature.reshape([-1, 1])) for template in templates ]
+
+        # claim result
+        person = gallery['person'][np.argmin(dis)]
+        return {'userID': person.userID, 'name': person.name}, None
+
+    def _naive_bayes(self, model_set, feature_name, gallery, probe_feature):
+        pass
+
+    def _default(self, model_set, feature_name, gallery, probe_feature):
+        pass
+
 
 class RecognitionService(BaseService):
     extractor = FeatureExtractor()
+    classifiers = Classifier()
 
     def is_valid_input_data(self, data=None):
         '''
@@ -92,7 +186,12 @@ class RecognitionService(BaseService):
         '''
         if 'face' in data:
             face = Image.open(data['face'])
-            return tuple(face.size) == tuple(settings.face_size)
+            valid = tuple(face.size) == tuple(settings.face_size)
+            if 'feature' in data:
+                valid = valid and (data['feature'].upper() in settings.all_feature_names)
+            if 'classifier' in data:
+                valid = valid and (data['classifier'].upper() in settings.all_classifier_names)
+            return valid
         return False
 
     def execute(self, *args, **kwargs):
@@ -101,6 +200,14 @@ class RecognitionService(BaseService):
         image = kwargs['data']['face']
         app = kwargs['app']
         request = kwargs['request']
+
+        feature_name = 'DEFAULT'
+        if 'feature' in kwargs['data']:
+            feature_name = kwargs['data']['feature'].upper() # must valid feature name
+
+        classifier_name = 'DEFAULT'
+        if 'classifier' in kwargs['data']:
+            classifier_name = kwargs['data']['classifier'].upper() # must valid classifier name
 
         # get input data
         persons = [p for p in Person.objects.using(app.appID).all()]
@@ -114,31 +221,27 @@ class RecognitionService(BaseService):
         if len(persons) == 0:
             return {'info': 'No face enrolled!'}
 
-        '''
-        # compute feature of face
-        target_pca = self.extractor.extract_pca(Image.open(image).convert('L'))
-        # retrieve all the feature; if not found, compute it
-        pca_per_person = [np.hstack([ self.get_face_features(app.appID, face, feature_name=settings.PCA_NAME)
-                              for face in faces])
-                          for faces in faces_per_person]
-        templates = [ np.mean(features, axis=1) for features in pca_per_person ]
-        # do classification
-        dis = [ linalg.norm(template.reshape([-1, 1]) - target_pca.reshape([-1, 1])) for template in templates ]
-        '''
-
         # do lda recognition
-        target_lda = self.extractor.extract_lda(Image.open(image).convert('L'))
-        lda_per_person = [np.hstack([ self.get_face_features(app.appID, face, feature_name=settings.LDA_NAME)
+        probe_feature = self.extractor.extract(Image.open(image).convert('L'), name=feature_name)
+        gallery = {'feature':
+                       [np.hstack([ self.get_face_features(app.appID, face, feature_name=feature_name)
                               for face in faces])
-                          for faces in faces_per_person]
-        templates = [ np.mean(features, axis=1) for features in lda_per_person ]
-        dis = [ linalg.norm(template.reshape([-1, 1]) - target_lda.reshape([-1, 1])) for template in templates ]
+                          for faces in faces_per_person],
+                   'person': persons,
+                   'update_time': app.update_time}
+        model_set = ClassifierModel.objects.using(app.appID)
+        result, model = self.classifiers.classify(classifier_name, model_set, feature_name, gallery, probe_feature)
 
-        # claim result
-        person = persons[np.argmin(dis)]
-        serializer = PersonSerializer(instance=person, context={'request': request})
+        # save the classifier model if needed
+        if model is not None:
+            tmpfile = tempfile.TemporaryFile(mode='w+b')
+            joblib.dump(model, tmpfile)
+            ClassifierModel.objects.db_manager(app.appID).update_or_create(feature_name=feature_name, name=classifier_name, appID=app.appID,
+                                                                           defaults={'parameter_file': File(tmpfile)})
+            tmpfile.close()
 
-        return {'person': serializer.data, 'dis': np.min(dis)}
+        return result
+
 
     def get_face_features(self, appID, face, feature_name):
         result = Feature.objects.using(appID).filter(face=face, name=feature_name)

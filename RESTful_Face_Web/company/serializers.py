@@ -83,5 +83,5 @@ class AppSerializer(serializers.HyperlinkedModelSerializer):
 
     class Meta:
         model = App
-        fields = ('id', 'url', 'company', 'app_name', 'status', 'appID')
-        read_only_fields = ['company', 'appID']
+        fields = ('id', 'url', 'company', 'app_name', 'status', 'appID', 'update_time')
+        read_only_fields = ['company', 'appID', 'update_time']

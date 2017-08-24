@@ -15,6 +15,14 @@ feature_dimension = [100, 1]
 pca_name = 'PCA'
 lda_name = 'LDA'
 hog_name = 'HOG'
+lbp_name = 'LBP'
+all_feature_names = [pca_name, lda_name, hog_name, lbp_name]
+
+# classifier name
+nearest_neighbor_name = 'NEAREST_NEIGHBOR'
+naive_bayes_name = 'NAIVE_BAYES'
+svm_name = 'SVM'
+all_classifier_names = [nearest_neighbor_name, naive_bayes_name, svm_name]
 
 # HOG settings
 hog_ori = 8
@@ -36,3 +44,8 @@ lbp_neighbors = 8
 lbp_radius = 2
 lbp_method = 'nri_uniform'
 lbp_lda_w_path = os.path.join(settings.BASE_DIR, 'service', 'lbp', 'W.npy') # 3480 x 257
+
+# SVM settings
+svm_c = 1
+svm_kernel = 'rbf'
+

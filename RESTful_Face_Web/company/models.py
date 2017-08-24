@@ -24,6 +24,8 @@ class App(models.Model):
     app_name = models.CharField(max_length=50)
     is_active = models.BooleanField(default=True)
 
+    update_time = models.DateTimeField(auto_now=True)
+
     def get_status(self):
         return 'live' if self.is_active else 'closed'
 
@@ -184,3 +186,24 @@ class Feature(models.Model):
   UNIQUE KEY `face_id` (`face_id`),
   CONSTRAINT `company_feature_face_id_a66f0874_fk_company_face_id` FOREIGN KEY (`face_id`) REFERENCES `company_face` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 ''', ]
+
+
+def classifier_parameter_path(instance, filename):
+    return 'classifier models/{0}/{1}/{2}/{3}'.format(instance.appID, instance.name, instance.feature_name, filename)
+
+
+class ClassifierModel(models.Model):
+    appID = models.CharField(max_length=50)
+    name = models.CharField(max_length=50)
+    feature_name = models.CharField(max_length=50)
+    parameter_file = models.FileField(upload_to=classifier_parameter_path)
+    created_time = models.DateTimeField(auto_now_add=True)
+    modified_time = models.DateTimeField(auto_now=True)
+
+    @staticmethod
+    def generate_sqlite():
+        return ['''CREATE TABLE "company_classifiermodel" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "appID" varchar(50) NOT NULL, "name" varchar(50) NOT NULL, "feature_name" varchar(50) NOT NULL, "parameter_file" varchar(100) NOT NULL, "created_time" datetime NOT NULL, "modified_time" datetime NOT NULL);''',]
+
+    @staticmethod
+    def generate_mysql():
+        return ['', ]
