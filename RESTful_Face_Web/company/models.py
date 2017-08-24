@@ -33,9 +33,12 @@ class App(models.Model):
         return self.company.first_name + self.app_name
 
     def delete(self, using=None, keep_parents=False):
-        path = os.path.join(MEDIA_ROOT, 'faces', str(self.appID))
-        if os.path.exists(path):
-            shutil.rmtree(path)
+        faces_path = os.path.join(MEDIA_ROOT, 'faces', str(self.appID))
+        models_path = os.path.join(MEDIA_ROOT, 'classifier models', str(self.appID))
+        if os.path.exists(faces_path):
+            shutil.rmtree(faces_path)
+        if os.path.exists(models_path):
+            shutil.rmtree(models_path)
         super().delete(using=using, keep_parents=keep_parents)
 
     def __str__(self):
@@ -166,7 +169,7 @@ class Face(models.Model):
 
 class Feature(models.Model):
     face = models.ForeignKey(Face, related_name='features', on_delete=models.CASCADE)
-    data = models.CharField(max_length=2000) # use json dump
+    data = models.CharField(max_length=20000) # use json dump
     name = models.CharField(max_length=50) # the name of feature
     created_time = models.DateTimeField(auto_now_add=True)
 
@@ -176,16 +179,16 @@ class Feature(models.Model):
 
     @staticmethod
     def generate_mysql():
-        return [''' CREATE TABLE `company_feature` (
+        return ['''CREATE TABLE `company_feature` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `data` varchar(2000) NOT NULL,
+  `data` varchar(20000) NOT NULL,
   `name` varchar(50) NOT NULL,
   `created_time` datetime NOT NULL,
   `face_id` int(11) NOT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `face_id` (`face_id`),
+  KEY `company_feature_face_id_a66f0874_fk_company_face_id` (`face_id`),
   CONSTRAINT `company_feature_face_id_a66f0874_fk_company_face_id` FOREIGN KEY (`face_id`) REFERENCES `company_face` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 ''', ]
+) ENGINE=InnoDB DEFAULT CHARSET=latin1''', ]
 
 
 def classifier_parameter_path(instance, filename):
@@ -206,4 +209,13 @@ class ClassifierModel(models.Model):
 
     @staticmethod
     def generate_mysql():
-        return ['', ]
+        return ['''CREATE TABLE `company_classifiermodel` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `appID` varchar(50) NOT NULL,
+  `name` varchar(50) NOT NULL,
+  `feature_name` varchar(50) NOT NULL,
+  `parameter_file` varchar(100) NOT NULL,
+  `created_time` datetime NOT NULL,
+  `modified_time` datetime NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1''', ]

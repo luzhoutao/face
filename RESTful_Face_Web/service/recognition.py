@@ -222,7 +222,7 @@ class RecognitionService(BaseService):
             return {'info': 'No face enrolled!'}
 
         # do lda recognition
-        probe_feature = self.extractor.extract(Image.open(image).convert('L'), name=feature_name)
+        probe_feature = self.extractor.extract(Image.open(image).convert('L'), name=feature_name).real
         gallery = {'feature':
                        [np.hstack([ self.get_face_features(app.appID, face, feature_name=feature_name)
                               for face in faces])
@@ -236,9 +236,10 @@ class RecognitionService(BaseService):
         if model is not None:
             tmpfile = tempfile.TemporaryFile(mode='w+b')
             joblib.dump(model, tmpfile)
-            ClassifierModel.objects.db_manager(app.appID).update_or_create(feature_name=feature_name, name=classifier_name, appID=app.appID,
+            model, created = ClassifierModel.objects.db_manager(app.appID).update_or_create(feature_name=feature_name, name=classifier_name, appID=app.appID,
                                                                            defaults={'parameter_file': File(tmpfile)})
             tmpfile.close()
+            print(created)
 
         return result
 
@@ -246,8 +247,8 @@ class RecognitionService(BaseService):
     def get_face_features(self, appID, face, feature_name):
         result = Feature.objects.using(appID).filter(face=face, name=feature_name)
         if len(result) == 0:  # if not found, calculate and save
-            result = self.extractor.extract(Image.open(face.image).convert('L'), name=feature_name)
-            Feature.objects.db_manager(appID).create(face=face, name=feature_name, data=json.dumps(result.real.tolist()))
+            result = self.extractor.extract(Image.open(face.image).convert('L'), name=feature_name).real
+            Feature.objects.db_manager(appID).create(face=face, name=feature_name, data=json.dumps(result.tolist()))
         else:  # if found, read
             result = np.array(json.loads(result[0].data))
         return result # numpy ndarray
