@@ -5,6 +5,7 @@ from django.core.validators import RegexValidator
 from datetime import datetime
 import shutil
 import os
+from django.utils.dateparse import parse_duration
 # service
 from RESTful_Face_Web.settings import MEDIA_ROOT
 # face feature
@@ -43,6 +44,16 @@ class App(models.Model):
 
     def __str__(self):
         return self.app_name+'('+self.appID+')'
+
+class Token2Token(models.Model):
+    # every user has a token to generate token for API usage
+    company = models.OneToOneField(User, on_delete=models.CASCADE)
+    duration = models.DurationField() # new in Django1.8
+    created_time = models.DateTimeField(auto_now_add=True)
+
+    def get_duration(self):
+        return self.duration.__str__()
+
 
 def get_target_app(company, appID=None):
     """Find the target active app of company with the specified appID"""
