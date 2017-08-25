@@ -2,6 +2,7 @@ from .base_service import BaseService
 from . import settings
 import numpy as np
 from numpy import linalg
+import os
 # models
 from company.models import Person, Face, Feature, ClassifierModel
 from company.serializers import PersonSerializer
@@ -23,7 +24,6 @@ from django.core.files import File
 import logging
 log = logging.getLogger(__name__)
 
-
 class FeatureExtractor:
     _extractors = {}
 
@@ -33,6 +33,11 @@ class FeatureExtractor:
         self._extractors[settings.hog_name] = self._hog
         self._extractors[settings.lbp_name] = self._lbp
         self._extractors['DEFAULT'] = self._default
+        self.pca_mean = None
+        self.pca_w = None
+        self.lda_mean = None
+        self.lda_w = None
+        self.lbp_w = None
 
     def extract(self, face, name):
         '''
@@ -50,9 +55,14 @@ class FeatureExtractor:
         face_array = np.array(face)
         face.close()
 
-        mean = np.load(settings.pca_mean_path)
-        W = np.load(settings.pca_w_path)[:, :settings.pca_k]
-        return np.dot(W.T, face_array.reshape([-1, 1]) - mean)  # 206 x 1
+        if self.pca_mean is None:
+            print('open pca mean')
+            self.pca_mean = np.load(settings.pca_mean_path)
+        if self.pca_w is None:
+            print('open pca w')
+            self.pca_w = np.load(settings.pca_w_path)[:, :settings.pca_k]
+        feature = np.dot(self.pca_w.T, face_array.reshape([-1, 1]) - self.pca_mean)  # 206 x 1
+        return feature
 
 
     def _lda(self, face):
@@ -60,9 +70,12 @@ class FeatureExtractor:
         face_array = np.array(face)
         face.close()
 
-        mean = np.load(settings.lda_mean_path)
-        W = np.load(settings.lda_w_path)
-        return np.dot(W.T, face_array.reshape([-1, 1]) - mean)  # 257 x 1
+        if self.lda_mean is None:
+            self.lda_mean = np.load(settings.lda_mean_path)
+        if self.lda_w is None:
+            self.lda_w  = np.load(settings.lda_w_path)
+        feature = np.dot(self.lda_w.T, face_array.reshape([-1, 1]) - self.lda_mean)  # 257 x 1
+        return feature
 
     def _lbp(self, face):
         assert(face.size == settings.face_size)
@@ -82,9 +95,10 @@ class FeatureExtractor:
         feature = np.vstack(hists).reshape([-1, 1])  # row - region , column - labels
 
         # use lda to do dimensionality reduction
-        w = np.load(settings.lbp_lda_w_path)
-        return np.dot(w.T, feature)  # 257 x 1
-
+        if self.lbp_w is None:
+            self.lbp_w = np.load(settings.lbp_lda_w_path)
+        feature = np.dot(self.lbp_w.T, feature)  # 257 x 1
+        return feature
 
     def _hog(self, face):
         assert(face.size == settings.face_size)
@@ -153,6 +167,7 @@ class Classifier():
 
         else:
             clf = joblib.load(model[0].parameter_file)
+            model[0].parameter_file.close()
 
         person = clf.predict([probe_feature[:, 0].tolist()])
 
@@ -247,7 +262,13 @@ class RecognitionService(BaseService):
     def get_face_features(self, appID, face, feature_name):
         result = Feature.objects.using(appID).filter(face=face, name=feature_name)
         if len(result) == 0:  # if not found, calculate and save
-            result = self.extractor.extract(Image.open(face.image).convert('L'), name=feature_name).real
+            with Image.open(face.image) as face_image:
+                result = self.extractor.extract(face_image.convert('L'), name=feature_name).real
+                face.image.close()
+            #'For checking currently opened files'
+            # import psutil
+            # p = psutil.Process(os.getpid())
+            # print(p.open_files())
             Feature.objects.db_manager(appID).create(face=face, name=feature_name, data=json.dumps(result.tolist()))
         else:  # if found, read
             result = np.array(json.loads(result[0].data))
