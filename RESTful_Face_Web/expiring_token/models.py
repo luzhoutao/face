@@ -9,4 +9,7 @@ class ExpiringToken(Token):
 
     def expired(self):
         """Return boolean indicating token expiration."""
-        return timezone.now() > self.expired_time
+        return timezone.localtime(timezone.now()) > self.expired_time
+
+    def get_expired_time(self):
+        return timezone.localtime(self.expired_time)

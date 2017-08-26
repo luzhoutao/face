@@ -2,7 +2,7 @@
 from rest_framework import serializers
 # model
 from django.contrib.auth.models import User
-from .models import Person, Face, Command, App
+from .models import Person, Face, Command, App, Token2Token
 # utils
 from rest_framework.utils import model_meta
 
@@ -28,6 +28,13 @@ class CompanySerializer(serializers.ModelSerializer):
             setattr(instance, attr, value)
         instance.save(using='default')
         return instance
+
+class Token2TokenSerializer(serializers.ModelSerializer):
+    duration = serializers.CharField(source='get_duration', read_only=True)
+    class Meta:
+        model = Token2Token
+        fields = ('duration', 'company')
+        read_only_fields = ('duration', 'company')
 
 class PersonSerializer(serializers.HyperlinkedModelSerializer):
     faces = serializers.HyperlinkedRelatedField(many=True, view_name='face-detail', read_only=True)

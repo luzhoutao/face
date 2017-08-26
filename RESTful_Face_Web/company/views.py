@@ -4,15 +4,15 @@ from rest_framework import status
 from rest_framework.exceptions import ValidationError
 # view
 from rest_framework import viewsets, mixins
-from rest_framework.decorators import detail_route, api_view
+from rest_framework.decorators import detail_route
 # parser
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser, FileUploadParser
 # serializers
-from .serializers import CompanySerializer, PersonSerializer, FaceSerializer, CommandSerializer, AppSerializer
+from .serializers import CompanySerializer, PersonSerializer, FaceSerializer, CommandSerializer, AppSerializer, Token2TokenSerializer
 # models
 from django.contrib.auth.models import User
 from . import models
-from .models import Person, Face, Command, App, Feature, ClassifierModel
+from .models import Person, Face, Command, App, Feature, ClassifierModel, Token2Token
 from expiring_token.models import ExpiringToken
 # permissions
 from rest_framework import permissions
@@ -128,9 +128,8 @@ class CompanyViewSet(mixins.RetrieveModelMixin,
         instance.delete()
 
     @detail_route(methods=['get'], permission_classes=[permissions.IsAdminUser, ])
-    def token(self, request, pk=None):
+    def token2token(self, request, pk=None):
         company = self.get_object()
-        [token.delete() for token in ExpiringToken.objects.filter(user=company) if token.expired()]
         try:
             lifespan = datetime.timedelta(seconds=0)
             if 'days' in request.data:
@@ -140,13 +139,17 @@ class CompanyViewSet(mixins.RetrieveModelMixin,
             # default lifespan is set in settings.py
             if lifespan.total_seconds() == 0:
                 lifespan = EXPIRING_TOKEN_LIFESPAN
-            expired_time = timezone.now() + lifespan
 
-            token = ExpiringToken.objects.get_or_create(user=company)[0]
-            token.expired_time = expired_time
-            token.save()
+            token2token = Token2Token.objects.filter(company=company)
+            if len(token2token) == 0:
+                token2token = Token2Token.objects.create(company=company, duration=lifespan)
+            else:
+                token2token[0].duration = token2token[0].duration + lifespan
+                token2token[0].save()
+                token2token = token2token[0]
 
-            return Response({'token': token.key})
+            serializer = Token2TokenSerializer(token2token)
+            return Response(serializer.data)
         except:
             # days, seconds parse error
             return Response(status=status.HTTP_400_BAD_REQUEST)

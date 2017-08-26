@@ -5,6 +5,7 @@ from django.core.validators import RegexValidator
 from datetime import datetime
 import shutil
 import os
+from django.utils.dateparse import parse_duration
 # service
 from RESTful_Face_Web.settings import MEDIA_ROOT
 # face feature
@@ -43,6 +44,16 @@ class App(models.Model):
 
     def __str__(self):
         return self.app_name+'('+self.appID+')'
+
+class Token2Token(models.Model):
+    # every user has a token to generate token for API usage
+    company = models.OneToOneField(User, on_delete=models.CASCADE)
+    duration = models.DurationField() # new in Django1.8
+    created_time = models.DateTimeField(auto_now_add=True)
+
+    def get_duration(self):
+        return self.duration.__str__()
+
 
 def get_target_app(company, appID=None):
     """Find the target active app of company with the specified appID"""
@@ -191,7 +202,7 @@ class Feature(models.Model):
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1''', ]
 
 
-def classifier_parameter_path(instance, filename):
+def classifier_file_path(instance, filename):
     return 'classifier models/{0}/{1}/{2}/{3}'.format(instance.appID, instance.name, instance.feature_name, filename)
 
 
@@ -199,9 +210,11 @@ class ClassifierModel(models.Model):
     appID = models.CharField(max_length=50)
     name = models.CharField(max_length=50)
     feature_name = models.CharField(max_length=50)
-    parameter_file = models.FileField(upload_to=classifier_parameter_path)
+    parameter_file = models.FileField(upload_to=classifier_file_path)
     created_time = models.DateTimeField(auto_now_add=True)
     modified_time = models.DateTimeField(auto_now=True)
+
+    additional_data = models.FileField(upload_to=classifier_file_path, require=False)
 
     @staticmethod
     def generate_sqlite():
