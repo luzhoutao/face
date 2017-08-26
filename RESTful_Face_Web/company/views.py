@@ -28,6 +28,7 @@ from rest_framework.decorators import list_route
 import datetime
 from django.utils import timezone
 import os, shutil
+import cv2
 # service
 from service import services
 
@@ -344,6 +345,15 @@ class FaceViewSet(viewsets.ModelViewSet):
         if len(person) != 1:
             log.error('No person specified!')
             raise ValidationError({'FaceViewSet': 'Unique person name or id need to be given!'})
+
+        image = None
+        if 'image' in self.request.data:
+            try:
+                tmp_image = Image.open(self.request.data['image'])
+                tmp_array = np.array(tmp_image)
+                cv2.cvtColor(tmp_array, cv2.COLOR_RGB2BGR)
+            except:
+                return Response({'status': status.HTTP_400_BAD_REQUEST, 'info': 'Unsupported image format or corrupted image data.'})
 
         serializer.save(person=person[0], image=None if 'image' not in self.request.data else self.request.data['image'])
         app.save()
