@@ -214,7 +214,7 @@ class ClassifierModel(models.Model):
     created_time = models.DateTimeField(auto_now_add=True)
     modified_time = models.DateTimeField(auto_now=True)
 
-    additional_data = models.FileField(upload_to=classifier_file_path, require=False)
+    additional_data = models.FileField(upload_to=classifier_file_path, blank=True)
 
     @staticmethod
     def generate_sqlite():
@@ -230,5 +230,6 @@ class ClassifierModel(models.Model):
   `parameter_file` varchar(100) NOT NULL,
   `created_time` datetime NOT NULL,
   `modified_time` datetime NOT NULL,
+  `additional_data` varchar(100) NOT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1''', ]

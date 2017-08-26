@@ -346,7 +346,7 @@ class FaceViewSet(viewsets.ModelViewSet):
             raise ValidationError({'FaceViewSet': 'Unique person name or id need to be given!'})
 
         serializer.save(person=person[0], image=None if 'image' not in self.request.data else self.request.data['image'])
-        app.save() # TODO this will update the update_time field in App
+        app.save()
 
     def perform_update(self, serializer):
         serializer.save(image=None if 'image' not in self.request.data else self.request.data['image'])

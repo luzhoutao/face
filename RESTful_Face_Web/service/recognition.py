@@ -23,6 +23,9 @@ from django.core.files import File
 # logging
 import logging
 log = logging.getLogger(__name__)
+# openface
+import openface
+import cv2
 
 class FeatureExtractor:
     _extractors = {}
@@ -38,6 +41,7 @@ class FeatureExtractor:
         self.lda_mean = None
         self.lda_w = None
         self.lbp_w = None
+        self.openface_nn = None
 
     def extract(self, face, name):
         '''
@@ -52,7 +56,7 @@ class FeatureExtractor:
 
     def _pca(self, face):
         assert (face.size == settings.face_size)
-        face_array = np.array(face)
+        face_array = np.array(face.convert('L'))
         face.close()
 
         if self.pca_mean is None:
@@ -67,7 +71,7 @@ class FeatureExtractor:
 
     def _lda(self, face):
         assert(face.size == settings.face_size)
-        face_array = np.array(face)
+        face_array = np.array(face.convert('L'))
         face.close()
 
         if self.lda_mean is None:
@@ -79,7 +83,7 @@ class FeatureExtractor:
 
     def _lbp(self, face):
         assert(face.size == settings.face_size)
-        face_array = np.array(face)
+        face_array = np.array(face.convert('L'))
         face.close()
 
         # extract lbp descriptor
@@ -102,7 +106,7 @@ class FeatureExtractor:
 
     def _hog(self, face):
         assert(face.size == settings.face_size)
-        face_array = np.array(face)
+        face_array = np.array(face.convert('L'))
         face.close()
 
         hog = feature.hog(face_array, orientations=settings.hog_ori, pixels_per_cell=settings.hog_cell, cells_per_block=settings.hog_region)
@@ -114,7 +118,11 @@ class FeatureExtractor:
         face_array = np.array(face)
         face.close()
 
-        return None
+        if self.openface_nn is None:
+            self.openface_nn = openface.TorchNeuralNet(settings.openface_model_path, imgDim=settings.openface_imgDim)
+        face_array = cv2.resize(face_array, (settings.openface_imgDim, settings.openface_imgDim))
+        rep = self.openface_nn.forward(face_array)
+        return rep.reshape([-1, 1])
 
 
 class Classifier():
@@ -167,13 +175,13 @@ class Classifier():
 
         else:
             clf = joblib.load(model[0].parameter_file)
-            mean = joblib.load(model[0].additional_data)
+            #mean = joblib.load(model[0].additional_data)
             model[0].parameter_file.close()
-            model[0].additional_data.close()
+            #model[0].additional_data.close()
 
         person = clf.predict([probe_feature[:, 0].tolist()])
 
-        return {'userID': person}, {'parameter': clf, 'additional': }
+        return {'userID': person}, clf
 
     def _nearest_neighbor(self, model_set, feature_name, gallery, probe_feature):
         templates = [ np.mean(features, axis=1) for features in gallery['feature'] ]
@@ -238,8 +246,7 @@ class RecognitionService(BaseService):
         if len(persons) == 0:
             return {'info': 'No face enrolled!'}
 
-        # do lda recognition
-        probe_feature = self.extractor.extract(Image.open(image).convert('L'), name=feature_name).real
+        probe_feature = self.extractor.extract(Image.open(image), name=feature_name).real
         gallery = {'feature':
                        [np.hstack([ self.get_face_features(app.appID, face, feature_name=feature_name)
                               for face in faces])
@@ -264,8 +271,9 @@ class RecognitionService(BaseService):
     def get_face_features(self, appID, face, feature_name):
         result = Feature.objects.using(appID).filter(face=face, name=feature_name)
         if len(result) == 0:  # if not found, calculate and save
+            print(face.image, face.id)
             with Image.open(face.image) as face_image:
-                result = self.extractor.extract(face_image.convert('L'), name=feature_name).real
+                result = self.extractor.extract(face_image, name=feature_name).real
                 face.image.close()
             #'For checking currently opened files'
             # import psutil
