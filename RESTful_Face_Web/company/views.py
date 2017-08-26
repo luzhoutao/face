@@ -31,12 +31,12 @@ import os, shutil
 # service
 from service import services
 
-#import uwsgi
+import uwsgi
 from RESTful_Face_Web.runtime_db import load_database
-#from RESTful_Face_Web.runtime_db.runtime_database import MySQLManager
-#myDBManager = MySQLManager()
-from RESTful_Face_Web.runtime_db.runtime_database import SQLiteManager
-myDBManager = SQLiteManager()
+from RESTful_Face_Web.runtime_db.runtime_database import MySQLManager
+myDBManager = MySQLManager()
+#from RESTful_Face_Web.runtime_db.runtime_database import SQLiteManager
+#myDBManager = SQLiteManager()
 
    
 class CompaniesViewSet(mixins.ListModelMixin,
@@ -120,7 +120,7 @@ class CompanyViewSet(mixins.RetrieveModelMixin,
         apps = App.objects.filter(company=instance, is_active=True)
         for app in apps:
             persons = Person.objects.using(app.appID)
-            [person.delete() for person in persons]  # this will delete the image file
+            [ person.delete() for person in persons ]  # this will delete the image file
 
             myDBManager.drop_database(app.appID)   #  this will delete the database file
             app.delete()
@@ -197,7 +197,7 @@ class AppViewSet(mixins.ListModelMixin,
         myDBManager.create_table(app.appID, Feature, 'feature')
         myDBManager.create_table(app.appID, ClassifierModel, 'classifier')
         log.info("Database for app %s of company %s (%s) Created!" % (app.app_name, app.company.username, app.company.first_name))
-        #uwsgi.reload()
+        uwsgi.reload()
 
     def perform_destroy(self, app):
         # delete the database and mark it as inactive, but keep the instance
