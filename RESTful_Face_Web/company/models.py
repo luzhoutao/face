@@ -202,7 +202,7 @@ class Feature(models.Model):
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1''', ]
 
 
-def classifier_parameter_path(instance, filename):
+def classifier_file_path(instance, filename):
     return 'classifier models/{0}/{1}/{2}/{3}'.format(instance.appID, instance.name, instance.feature_name, filename)
 
 
@@ -210,9 +210,11 @@ class ClassifierModel(models.Model):
     appID = models.CharField(max_length=50)
     name = models.CharField(max_length=50)
     feature_name = models.CharField(max_length=50)
-    parameter_file = models.FileField(upload_to=classifier_parameter_path)
+    parameter_file = models.FileField(upload_to=classifier_file_path)
     created_time = models.DateTimeField(auto_now_add=True)
     modified_time = models.DateTimeField(auto_now=True)
+
+    additional_data = models.FileField(upload_to=classifier_file_path, require=False)
 
     @staticmethod
     def generate_sqlite():

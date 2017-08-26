@@ -167,11 +167,13 @@ class Classifier():
 
         else:
             clf = joblib.load(model[0].parameter_file)
+            mean = joblib.load(model[0].additional_data)
             model[0].parameter_file.close()
+            model[0].additional_data.close()
 
         person = clf.predict([probe_feature[:, 0].tolist()])
 
-        return {'userID': person}, clf
+        return {'userID': person}, {'parameter': clf, 'additional': }
 
     def _nearest_neighbor(self, model_set, feature_name, gallery, probe_feature):
         templates = [ np.mean(features, axis=1) for features in gallery['feature'] ]
