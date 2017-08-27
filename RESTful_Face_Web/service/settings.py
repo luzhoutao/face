@@ -23,6 +23,7 @@ nearest_neighbor_name = 'NEAREST_NEIGHBOR'
 naive_bayes_name = 'NAIVE_BAYES'
 svm_name = 'SVM'
 all_classifier_names = [nearest_neighbor_name, naive_bayes_name, svm_name]
+need_template_classifiers = [nearest_neighbor_name, ]
 
 # HOG settings
 hog_ori = 8

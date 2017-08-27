@@ -178,6 +178,22 @@ class Face(models.Model):
         super().delete(using, keep_parents)
         storage.delete(filename)
 
+class FeatureGallery(models.Model):
+    name = models.CharField(max_length=50)
+    person = models.OneToOneField(Person, on_delete=models.CASCADE)
+
+    data = models.CharField(max_length=20000, blank=True)
+    created_time = models.DateTimeField(auto_now_add=True)
+    modified_time = models.DateTimeField(auto_now=True)
+
+    @staticmethod
+    def generate_sqlite():
+        return ['''CREATE TABLE "company_featuregallery" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "name" varchar(50) NOT NULL, "data" varchar(20000) NOT NULL, "created_time" datetime NOT NULL, "modified_time" datetime NOT NULL, "person_id" integer NOT NULL UNIQUE REFERENCES "company_person" ("id"));''']
+
+    @staticmethod
+    def generate_myql():
+        return ['''''', ]
+
 class Feature(models.Model):
     face = models.ForeignKey(Face, related_name='features', on_delete=models.CASCADE)
     data = models.CharField(max_length=20000) # use json dump
@@ -214,7 +230,7 @@ class ClassifierModel(models.Model):
     created_time = models.DateTimeField(auto_now_add=True)
     modified_time = models.DateTimeField(auto_now=True)
 
-    additional_data = models.FileField(upload_to=classifier_file_path, blank=True)
+    #additional_data = models.FileField(upload_to=classifier_file_path, blank=True)
 
     @staticmethod
     def generate_sqlite():

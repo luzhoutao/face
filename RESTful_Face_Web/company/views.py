@@ -12,7 +12,7 @@ from .serializers import CompanySerializer, PersonSerializer, FaceSerializer, Co
 # models
 from django.contrib.auth.models import User
 from . import models
-from .models import Person, Face, Command, App, Feature, ClassifierModel, Token2Token
+from .models import Person, Face, Command, App, Feature, ClassifierModel, Token2Token, FeatureGallery
 from expiring_token.models import ExpiringToken
 # permissions
 from rest_framework import permissions
@@ -26,18 +26,20 @@ from .utils.retrieve_admin import get_admin
 from RESTful_Face_Web.settings import EXPIRING_TOKEN_LIFESPAN, MEDIA_ROOT
 from rest_framework.decorators import list_route
 import datetime
+from PIL import Image
+import numpy as np
 from django.utils import timezone
 import os, shutil
 import cv2
 # service
 from service import services
 
-import uwsgi
+#import uwsgi
 from RESTful_Face_Web.runtime_db import load_database
-from RESTful_Face_Web.runtime_db.runtime_database import MySQLManager
-myDBManager = MySQLManager()
-#from RESTful_Face_Web.runtime_db.runtime_database import SQLiteManager
-#myDBManager = SQLiteManager()
+#from RESTful_Face_Web.runtime_db.runtime_database import MySQLManager
+#myDBManager = MySQLManager()
+from RESTful_Face_Web.runtime_db.runtime_database import SQLiteManager
+myDBManager = SQLiteManager()
 
    
 class CompaniesViewSet(mixins.ListModelMixin,
@@ -200,8 +202,9 @@ class AppViewSet(mixins.ListModelMixin,
         myDBManager.create_table(app.appID, Face, 'face')
         myDBManager.create_table(app.appID, Feature, 'feature')
         myDBManager.create_table(app.appID, ClassifierModel, 'classifier')
+        myDBManager.create_table(app.appID, FeatureGallery, 'feature gallery')
         log.info("Database for app %s of company %s (%s) Created!" % (app.app_name, app.company.username, app.company.first_name))
-        uwsgi.reload()
+        #uwsgi.reload()
 
     def perform_destroy(self, app):
         # delete the database and mark it as inactive, but keep the instance
@@ -352,10 +355,11 @@ class FaceViewSet(viewsets.ModelViewSet):
                 tmp_image = Image.open(self.request.data['image'])
                 tmp_array = np.array(tmp_image)
                 cv2.cvtColor(tmp_array, cv2.COLOR_RGB2BGR)
+                image = self.request.data['image']
             except:
                 return Response({'status': status.HTTP_400_BAD_REQUEST, 'info': 'Unsupported image format or corrupted image data.'})
 
-        serializer.save(person=person[0], image=None if 'image' not in self.request.data else self.request.data['image'])
+        serializer.save(person=person[0], image=image)
         app.save()
 
     def perform_update(self, serializer):
