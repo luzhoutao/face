@@ -36,10 +36,10 @@ from service import services
 
 #import uwsgi
 from RESTful_Face_Web.runtime_db import load_database
-#from RESTful_Face_Web.runtime_db.runtime_database import MySQLManager
-#myDBManager = MySQLManager()
-from RESTful_Face_Web.runtime_db.runtime_database import SQLiteManager
-myDBManager = SQLiteManager()
+from RESTful_Face_Web.runtime_db.runtime_database import MySQLManager
+myDBManager = MySQLManager()
+#from RESTful_Face_Web.runtime_db.runtime_database import SQLiteManager
+#myDBManager = SQLiteManager()
 
    
 class CompaniesViewSet(mixins.ListModelMixin,
@@ -360,7 +360,8 @@ class FaceViewSet(viewsets.ModelViewSet):
                 return Response({'status': status.HTTP_400_BAD_REQUEST, 'info': 'Unsupported image format or corrupted image data.'})
 
         serializer.save(person=person[0], image=image)
-        app.save()
+        person[0].save() # this will update person's modified_time
+        app.save() # this will update app's modified_time
 
     def perform_update(self, serializer):
         serializer.save(image=None if 'image' not in self.request.data else self.request.data['image'])

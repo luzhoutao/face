@@ -48,10 +48,10 @@ lbp_lda_w_path = os.path.join(settings.BASE_DIR, 'service', 'lbp', 'W.npy') # 34
 
 # SVM settings
 svm_c = 1
-svm_kernel = 'rbf'
+svm_kernel = 'linear'
 
 
 # openface settings
 openface_model_path = os.path.join(settings.BASE_DIR, 'service', 'openface', 'nn4.small2.v1.t7')
 openface_imgDim = 96
-
+openface_align_path = landmark_model_path
