@@ -204,7 +204,7 @@ class Classifier():
 
         person = clf.predict([probe_feature[:, 0].tolist(), ])
         #self.log.info(clf.decision_function([probe_feature[:, 0].tolist(), ]))
-
+        
         return {'userID': person[0]}, clf if retrain else None # if retrain, then save the new model
 
     def _nearest_neighbor(self, model_set, feature_name, probe_feature, service):
@@ -218,13 +218,13 @@ class Classifier():
 
         # claim result
         person = gallery['person'][np.argmin(dis)]
-        return {'userID': person.userID, 'name': person.name}, None
+        return {'userID': person.userID}, None
 
     def _naive_bayes(self, model_set, feature_name, probe_feature, service):
         pass
 
     def _default(self, model_set, feature_name, probe_feature, service):
-        pass
+        return self._nearest_neighbor(model_set, feature_name, probe_feature, service)
 
 
 class RecognitionService(BaseService):
@@ -283,7 +283,7 @@ class RecognitionService(BaseService):
         # retrieve model and classify
         model_set = ClassifierModel.objects.using(self.app.appID)
         result, model = self.classifiers.classify(self.classifier_name, model_set, self.feature_name, probe_feature, self)
-
+        
         # save the classifier model if needed
         if model is not None:
             tmpfile = tempfile.TemporaryFile(mode='w+b')
