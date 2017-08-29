@@ -180,7 +180,7 @@ class Classifier():
         if retrain:
             start = datetime.now()
             gallery = service.get_gallery(need_template=False)
-            self.log.info('Retrieve gallery time: ', datetime.now() - start)
+            self.log.info('Retrieve gallery time: %s'%(datetime.now() - start))
 
             features = []
             labels = []
