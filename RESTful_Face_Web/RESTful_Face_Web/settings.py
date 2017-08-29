@@ -25,7 +25,7 @@ SECRET_KEY = 'jm%z1b74z0b4x&jwwx3@nr4oe_8wuxp0+u-7=%o%%19wb00rq*'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '172.29.34.77']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '172.29.34.77', '172.29.33.44']
 
 # Admin User
 ADMIN_NAME = 'admin'
@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'company',
+    'service',
     'expiring_token',
     'rest_framework_swagger',
 ]
@@ -177,6 +178,10 @@ LOGGING = {
             'propagate': False,
         },
         'company': {
+            'handlers': ['console', 'logfile'],
+            'level': 'DEBUG',
+        },
+        'service': {
             'handlers': ['console', 'logfile'],
             'level': 'DEBUG',
         },
