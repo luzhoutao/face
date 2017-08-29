@@ -34,7 +34,7 @@ import cv2
 # service
 from service import services
 
-#import uwsgi
+import uwsgi
 from RESTful_Face_Web.runtime_db import load_database
 from RESTful_Face_Web.runtime_db.runtime_database import MySQLManager
 myDBManager = MySQLManager()
@@ -204,7 +204,7 @@ class AppViewSet(mixins.ListModelMixin,
         myDBManager.create_table(app.appID, ClassifierModel, 'classifier')
         myDBManager.create_table(app.appID, FeatureGallery, 'feature gallery')
         log.info("Database for app %s of company %s (%s) Created!" % (app.app_name, app.company.username, app.company.first_name))
-        #uwsgi.reload()
+        uwsgi.reload()
 
     def perform_destroy(self, app):
         # delete the database and mark it as inactive, but keep the instance

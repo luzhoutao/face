@@ -25,7 +25,7 @@ SECRET_KEY = 'jm%z1b74z0b4x&jwwx3@nr4oe_8wuxp0+u-7=%o%%19wb00rq*'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '172.29.34.77']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '172.29.34.77', 'face.d1.comp.nus.edu.sg']
 
 # Admin User
 ADMIN_NAME = 'admin'
@@ -79,15 +79,15 @@ WSGI_APPLICATION = 'RESTful_Face_Web.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/1.11/ref/settings/#databases
 
-MYSQL_USER = 'RESTful_Face_API'
-MYSQL_PASSWORD = 'jt1330'
+MYSQL_USER = 'face_api'
+MYSQL_PASSWORD = 'Jt@1330'
 MYSQL_HOST = 'localhost'
 DB_SETTINGS_BASE_DIR = os.path.join(BASE_DIR, 'RESTful_Face_Web/runtime_db/database_settings')
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'USER': 'RESTful_Face_API',
-        'PASSWORD': 'jt1330',
+        'USER': MYSQL_USER,
+        'PASSWORD': MYSQL_PASSWORD,
         'NAME': 'Admin',
         'HOST': 'localhost',
         'PORT': '3306',
@@ -180,6 +180,10 @@ LOGGING = {
             'handlers': ['console', 'logfile'],
             'level': 'DEBUG',
         },
+        'service': {
+            'handlers': ['console', 'logfile'],
+            'level': 'DEBUG',
+        },
     }
 }
 
@@ -191,6 +195,6 @@ REST_FRAMEWORK = {
    ),
 }
 # The default expiring time of tokens
-EXPIRING_TOKEN_LIFESPAN = datetime.timedelta(days=1)
+EXPIRING_TOKEN_LIFESPAN = datetime.timedelta(days=30)
 
 from RESTful_Face_Web.runtime_db import load_database
