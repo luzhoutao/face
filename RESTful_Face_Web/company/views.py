@@ -339,7 +339,10 @@ class FaceViewSet(viewsets.ModelViewSet):
         # get person's all faces
         return Face.objects.using(app.appID).filter(person__in=person)
 
-    def perform_create(self, serializer):
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
         app = models.get_target_app(self.request.user,
                                     appID=self.request.data['appID'] if 'appID' in self.request.data else None)
         if app==None:
@@ -352,16 +355,21 @@ class FaceViewSet(viewsets.ModelViewSet):
         image = None
         if 'image' in self.request.data:
             try:
+                print('checking...')
                 tmp_image = Image.open(self.request.data['image'])
                 tmp_array = np.array(tmp_image)
                 cv2.cvtColor(tmp_array, cv2.COLOR_RGB2BGR)
                 image = self.request.data['image']
+                print('check done.')
             except:
-                return Response({'status': status.HTTP_400_BAD_REQUEST, 'info': 'Unsupported image format or corrupted image data.'})
+                return Response(status=status.HTTP_400_BAD_REQUEST)
 
         serializer.save(person=person[0], image=image)
         person[0].save() # this will update person's modified_time
         app.save() # this will update app's modified_time
+
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
     def perform_update(self, serializer):
         serializer.save(image=None if 'image' not in self.request.data else self.request.data['image'])

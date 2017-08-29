@@ -4,8 +4,13 @@ import os
 # landmark
 landmark_model_path = os.path.join(settings.BASE_DIR, 'service', 'shape_predictor_68_face_landmarks.dat')
 
+# openface settings
+openface_model_path = os.path.join(settings.BASE_DIR, 'service', 'openface', 'nn4.small2.v1.t7')
+openface_imgDim = 96
+openface_align_path = landmark_model_path
+
 # face alignment (keep same as experiment)
-face_size = (150, 170) # have to be a tuple
+face_size = (openface_imgDim, openface_imgDim) # have to be a tuple
 eye_offset_percentage = [0.25, 0.25]
 
 # face feature dimension
@@ -50,8 +55,3 @@ lbp_lda_w_path = os.path.join(settings.BASE_DIR, 'service', 'lbp', 'W.npy') # 34
 svm_c = 1
 svm_kernel = 'linear'
 
-
-# openface settings
-openface_model_path = os.path.join(settings.BASE_DIR, 'service', 'openface', 'nn4.small2.v1.t7')
-openface_imgDim = 96
-openface_align_path = landmark_model_path
