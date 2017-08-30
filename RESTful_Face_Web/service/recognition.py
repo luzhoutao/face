@@ -150,7 +150,7 @@ class Classifier():
         self._classifiers[settings.naive_bayes_name] = self._naive_bayes
         self._classifiers['DEFAULT'] = self._default
 
-    def classify(self, classifier_name, model_set, feature_name, probe_feature, service):
+    def classify(self, classifier_name, model_set, feature_name, probe_feature, k, service):
         '''
         This is the public interface to call all kinds of classifier
         :param classifier_name: the name of classifier
@@ -165,9 +165,9 @@ class Classifier():
             the multi-class classification result - person or person's info.
         '''
         self.log = service.log
-        return self._classifiers[classifier_name](model_set, feature_name, probe_feature, service)
+        return self._classifiers[classifier_name](model_set, feature_name, probe_feature, k, service)
 
-    def _svm(self, model_set, feature_name, probe_feature, service):
+    def _svm(self, model_set, feature_name, probe_feature, k, service):
         model = model_set.filter(feature_name=feature_name, name=settings.svm_name)
 
         retrain = len(model) == 0
@@ -180,6 +180,8 @@ class Classifier():
         if retrain:
             start = datetime.now()
             gallery = service.get_gallery(need_template=False)
+            if gallery is None:
+                return {'info': 'No face enrolled.'}, None
             self.log.info('Retrieve gallery time: %s'%(datetime.now() - start))
 
             features = []
@@ -193,7 +195,10 @@ class Classifier():
             clf = svm.SVC(C=settings.svm_c, kernel=settings.svm_kernel, probability=True, decision_function_shape='ovr')
 
             start = datetime.now()
-            clf.fit(features, labels)
+            try:
+                clf.fit(features, labels)
+            except ValueError:
+                return {'info': 'Only one class'}, None
             self.log.info("SVM (feature shape: %s)training time: %s"%(np.shape(features), datetime.now() - start))
 
         else:
@@ -202,13 +207,23 @@ class Classifier():
             model[0].parameter_file.close()
             #model[0].additional_data.close()
 
-        person = clf.predict([probe_feature[:, 0].tolist(), ])
+        distance = clf.decision_function([probe_feature[:, 0].tolist(), ])
+
+        if len(np.shape(distance)) == 1:
+            if k == 1:
+                return {'userID': clf.classes_[int(distance[0]<0)], 'dis': []}, None
+            if k == 2:
+                return {'userID': clf.classes_ if distance[0]>0 else clf.classes_[::-1], 'dis': [np.abs(distance[0]), - np.abs(distance[0])]}, None
+        
+        topk_indices = np.argsort(distance[0])[::-1][:k]
+        #person = clf.predict([probe_feature[:, 0].tolist(), ])
         #self.log.info(clf.decision_function([probe_feature[:, 0].tolist(), ]))
+        return { 'userID': clf.classes_[topk_indices], 'dis': distance[0][topk_indices] }, clf if retrain else None # if retrain, then save the new model
 
-        return {'userID': person[0]}, clf if retrain else None # if retrain, then save the new model
-
-    def _nearest_neighbor(self, model_set, feature_name, probe_feature, service):
+    def _nearest_neighbor(self, model_set, feature_name, probe_feature, k, service):
         gallery = service.get_gallery(need_template=True)
+        if gallery is None:
+            return {'info': 'No face enrolled.'}, None
         #print('NN gallery feature: ', len(gallery['feature']), [np.shape(g) for g in gallery['feature']])
         #print('NN gallery persons: ', gallery['person'])
         #print('NN gallery update time: ', gallery['update_time'])
@@ -217,14 +232,15 @@ class Classifier():
         self.log.info("Use nearest neighbor.")
 
         # claim result
-        person = gallery['person'][np.argmin(dis)]
-        return {'userID': person.userID, 'name': person.name}, None
+        topk_indices = np.argsort(dis)[:k]
+        persons = gallery['person'][topk_indices]
+        return {'userID': [person.userID for person in persons], 'dis': np.array(dis)[topk_indices].tolist() }, None
 
-    def _naive_bayes(self, model_set, feature_name, probe_feature, service):
+    def _naive_bayes(self, model_set, feature_name, probe_feature, k, service):
         pass
 
-    def _default(self, model_set, feature_name, probe_feature, service):
-        pass
+    def _default(self, model_set, feature_name, probe_feature, k, service):
+        return self._svm(model_set, feature_name, probe_feature, service)
 
 
 class RecognitionService(BaseService):
@@ -236,13 +252,16 @@ class RecognitionService(BaseService):
 
     log = None
 
-    def is_valid_input_data(self, data=None):
+    def is_valid_input_data(self, data=None, app=None):
         '''
         :param data: 
             'face' The face image
         :return: 
             must contain face image with the specified size
         '''
+        assert(data is not None)
+        assert(app is not None)
+
         if 'face' in data:
             face = Image.open(data['face'])
             valid = tuple(face.size) == tuple(settings.face_size)
@@ -250,6 +269,13 @@ class RecognitionService(BaseService):
                 valid = valid and (data['feature'].upper() in settings.all_feature_names)
             if 'classifier' in data:
                 valid = valid and (data['classifier'].upper() in settings.all_classifier_names)
+            if 'k' in data:
+                try:
+                    k = int(data['k'])
+                    valid = len(Person.objects.using(app.appID).all()) >= k and k > 0
+                except ValueError:
+                    valid = False
+            print(valid)
             return valid
         return False
 
@@ -261,6 +287,7 @@ class RecognitionService(BaseService):
         image = kwargs['data']['face']
         self.app = kwargs['app']
         request = kwargs['request']
+        k = 1 if 'k' not in kwargs['data'] else int(kwargs['data']['k'])
 
         self.log = VerbosePrinter(self.app)
 
@@ -282,8 +309,8 @@ class RecognitionService(BaseService):
 
         # retrieve model and classify
         model_set = ClassifierModel.objects.using(self.app.appID)
-        result, model = self.classifiers.classify(self.classifier_name, model_set, self.feature_name, probe_feature, self)
-
+        result, model = self.classifiers.classify(self.classifier_name, model_set, self.feature_name, probe_feature, k, self)
+        
         # save the classifier model if needed
         if model is not None:
             tmpfile = tempfile.TemporaryFile(mode='w+b')
@@ -342,7 +369,7 @@ class RecognitionService(BaseService):
         persons = np.array(persons)[mask]
 
         if len(persons) == 0:
-            return {'info': 'No face enrolled!'}
+            return None
 
         return {'feature': galleries,
                    'person': persons,
