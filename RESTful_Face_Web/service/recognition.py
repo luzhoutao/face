@@ -235,12 +235,11 @@ class Classifier():
         topk_indices = np.argsort(dis)[:k]
         persons = gallery['person'][topk_indices]
         return {'userID': [person.userID for person in persons], 'dis': np.array(dis)[topk_indices].tolist() }, None
-
     def _naive_bayes(self, model_set, feature_name, probe_feature, k, service):
         pass
 
-    def _default(self, model_set, feature_name, probe_feature, k, service):
-        return self._svm(model_set, feature_name, probe_feature, service)
+    def _default(self, model_set, feature_name, probe_feature, service):
+        return self._nearest_neighbor(model_set, feature_name, probe_feature, service)
 
 
 class RecognitionService(BaseService):
