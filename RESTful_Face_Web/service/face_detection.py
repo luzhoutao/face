@@ -9,6 +9,8 @@ import numpy as np
 import math
 # global settings
 from . import settings
+# try openface detection
+import openface
 
 class FaceAligner():
     def __init__(self, dest_sz, offset_pct):
@@ -93,7 +95,8 @@ class FaceDetectionService(BaseService):
 
         detector = dlib.get_frontal_face_detector()
         predictor = dlib.shape_predictor(settings.landmark_model_path)
-        aligner = FaceAligner(dest_sz=settings.face_size, offset_pct=settings.eye_offset_percentage)
+        aligner = openface.AlignDlib(settings.openface_align_path)
+        #aligner = FaceAligner(dest_sz=settings.face_size, offset_pct=settings.eye_offset_percentage)
 
         image = Image.open(image_data).convert('RGB')
         imarray = np.array(image)
@@ -107,7 +110,9 @@ class FaceDetectionService(BaseService):
             shape = predictor(imarray, detection)
             landmarks = list(map(lambda p: (p.x, p.y), shape.parts()))
 
-            face = aligner.align(image, landmarks)
+            #face = aligner.align(image, landmarks)
+            
+            face = aligner.align(settings.openface_imgDim, imarray, bb=detection)
 
             data = [(pixel[0], pixel[1], pixel[2]) for row in np.asarray(face) for pixel in row]
             faces.append({'data': data, 'origin_size': origin_size, 'size': settings.face_size})

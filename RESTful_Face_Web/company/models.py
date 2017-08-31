@@ -180,19 +180,33 @@ class Face(models.Model):
 
 class FeatureGallery(models.Model):
     name = models.CharField(max_length=50)
-    person = models.OneToOneField(Person, on_delete=models.CASCADE)
+    person = models.ForeignKey(Person, on_delete=models.CASCADE)
 
     data = models.CharField(max_length=20000, blank=True)
     created_time = models.DateTimeField(auto_now_add=True)
     modified_time = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = (('name', 'person'),)
 
     @staticmethod
     def generate_sqlite():
         return ['''CREATE TABLE "company_featuregallery" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "name" varchar(50) NOT NULL, "data" varchar(20000) NOT NULL, "created_time" datetime NOT NULL, "modified_time" datetime NOT NULL, "person_id" integer NOT NULL UNIQUE REFERENCES "company_person" ("id"));''']
 
     @staticmethod
-    def generate_myql():
-        return ['''''', ]
+    def generate_mysql():
+        return ['''CREATE TABLE `company_featuregallery` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(50) NOT NULL,
+  `data` varchar(20000) NOT NULL,
+  `created_time` datetime NOT NULL,
+  `modified_time` datetime NOT NULL,
+  `person_id` int(11) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `company_featuregallery_name_person_id_eda813e4_uniq` (`name`,`person_id`),
+  KEY `company_featuregallery_person_id_d6d7b308` (`person_id`),
+  CONSTRAINT `company_featuregallery_person_id_d6d7b308_fk_company_person_id` FOREIGN KEY (`person_id`) REFERENCES `company_person` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1''', ]
 
 class Feature(models.Model):
     face = models.ForeignKey(Face, related_name='features', on_delete=models.CASCADE)

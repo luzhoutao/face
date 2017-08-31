@@ -34,12 +34,12 @@ import cv2
 # service
 from service import services
 
-#import uwsgi
+import uwsgi
 from RESTful_Face_Web.runtime_db import load_database
-#from RESTful_Face_Web.runtime_db.runtime_database import MySQLManager
-#myDBManager = MySQLManager()
-from RESTful_Face_Web.runtime_db.runtime_database import SQLiteManager
-myDBManager = SQLiteManager()
+from RESTful_Face_Web.runtime_db.runtime_database import MySQLManager
+myDBManager = MySQLManager()
+#from RESTful_Face_Web.runtime_db.runtime_database import SQLiteManager
+#myDBManager = SQLiteManager()
 
    
 class CompaniesViewSet(mixins.ListModelMixin,
@@ -204,7 +204,7 @@ class AppViewSet(mixins.ListModelMixin,
         myDBManager.create_table(app.appID, ClassifierModel, 'classifier')
         myDBManager.create_table(app.appID, FeatureGallery, 'feature gallery')
         log.info("Database for app %s of company %s (%s) Created!" % (app.app_name, app.company.username, app.company.first_name))
-        #uwsgi.reload()
+        uwsgi.reload()
 
     def perform_destroy(self, app):
         # delete the database and mark it as inactive, but keep the instance
@@ -339,7 +339,10 @@ class FaceViewSet(viewsets.ModelViewSet):
         # get person's all faces
         return Face.objects.using(app.appID).filter(person__in=person)
 
-    def perform_create(self, serializer):
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
         app = models.get_target_app(self.request.user,
                                     appID=self.request.data['appID'] if 'appID' in self.request.data else None)
         if app==None:
@@ -352,15 +355,21 @@ class FaceViewSet(viewsets.ModelViewSet):
         image = None
         if 'image' in self.request.data:
             try:
+                print('checking...')
                 tmp_image = Image.open(self.request.data['image'])
                 tmp_array = np.array(tmp_image)
                 cv2.cvtColor(tmp_array, cv2.COLOR_RGB2BGR)
                 image = self.request.data['image']
+                print('check done.')
             except:
-                return Response({'status': status.HTTP_400_BAD_REQUEST, 'info': 'Unsupported image format or corrupted image data.'})
+                return Response(status=status.HTTP_400_BAD_REQUEST)
 
         serializer.save(person=person[0], image=image)
-        app.save()
+        person[0].save() # this will update person's modified_time
+        app.save() # this will update app's modified_time
+
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
     def perform_update(self, serializer):
         serializer.save(image=None if 'image' not in self.request.data else self.request.data['image'])
@@ -380,13 +389,13 @@ def service_bind(service_config):
     service = service_config[2]()
     def decorator(func):
         def func_wrapper(self, request):
-            # validation service input
-            if not service.is_valid_input_data(request.data):
-                return Response(status=status.HTTP_400_BAD_REQUEST)
             # find the app
             if 'appID' not in request.data or len(App.objects.filter(company=request.user, appID=request.data['appID']))==0:
                 raise ValidationError({'Service': 'App Not Found'})
+                        # validation service input
             app = App.objects.filter(appID=request.data['appID'], company=request.user)[0]
+            if not service.is_valid_input_data(request.data, app=app):
+                return Response(status=status.HTTP_400_BAD_REQUEST)
             return func(self, request, service, service_config[0], app)
         return func_wrapper
     return decorator
