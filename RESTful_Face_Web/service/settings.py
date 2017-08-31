@@ -10,7 +10,7 @@ openface_imgDim = 96
 openface_align_path = landmark_model_path
 
 # face alignment (keep same as experiment)
-face_size = (150, 170)#(openface_imgDim, openface_imgDim) # have to be a tuple
+face_size = (openface_imgDim, openface_imgDim) # have to be a tuple
 eye_offset_percentage = [0.25, 0.25]
 
 # face feature dimension
