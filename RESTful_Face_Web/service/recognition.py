@@ -238,7 +238,6 @@ class Classifier():
         result = {'userID': [person.userID for person in persons], 'dis': np.array(dis)[topk_indices].tolist() }
         
         # the threshold only support openface embeddings with nearest neighbor classifier
-        service.threshold = None
         if service.threshold is None or feature_name is not 'DEFAULT':
             return result, None
 
