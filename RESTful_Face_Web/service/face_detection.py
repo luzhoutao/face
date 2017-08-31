@@ -107,14 +107,16 @@ class FaceDetectionService(BaseService):
         for detection in detections:
             origin_size = (detection.right() - detection.left(), detection.bottom() - detection.top())
 
-            shape = predictor(imarray, detection)
-            landmarks = list(map(lambda p: (p.x, p.y), shape.parts()))
+            #shape = predictor(imarray, detection)
+            #landmarks = list(map(lambda p: (p.x, p.y), shape.parts()))
 
             #face = aligner.align(image, landmarks)
+
+            coordinates = [detection.left(), detection.top(), detection.right(), detection.bottom()]
             
             face = aligner.align(settings.openface_imgDim, imarray, bb=detection)
 
             data = [(pixel[0], pixel[1], pixel[2]) for row in np.asarray(face) for pixel in row]
-            faces.append({'data': data, 'origin_size': origin_size, 'size': settings.face_size})
+            faces.append({'data': data, 'origin_size': origin_size, 'size': settings.face_size, 'coordinates': coordinates})
 
         return {'faces': faces}

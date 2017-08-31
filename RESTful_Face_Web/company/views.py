@@ -463,6 +463,22 @@ class CommandViewSet(mixins.ListModelMixin,
         log.info("Service: "+services.RECOGNITION[1])
         return Response(results)
 
+    @list_route(methods=['post', ], permission_classes=[TokenPermission, ])
+    @service_bind(services.COMPARE)
+    @log_command()
+    def compare(self, request, service, app):
+        results = service.execute(request=request, data=request.data, app=app)
+        log.info("Service: "+services.COMPARE[1])
+        return Response(results)
+
+    @list_route(methods=['post', ], permission_classes=[TokenPermission, ])
+    @service_bind(services.VERIFICATION)
+    @log_command()
+    def verify(self, request, service, app):
+        results = service.execute(request=request, data=request.data, app=app)
+        log.info("Service: "+services.VERIFICATION[1])
+        return Response(results)
+
 '''
     @list_route(methods=['post', 'put'], permission_classes=[TokenPermission, ])
     @log_command(services.LANDMARK_DETECTION)

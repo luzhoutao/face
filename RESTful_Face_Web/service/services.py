@@ -5,6 +5,8 @@ This file defines all the services available in this system.
 from .quality_check import QualityCheckService
 from .face_detection import FaceDetectionService
 from .recognition import RecognitionService
+from .compare import CompareService
+from .verification import VerificationService
 
 from company.models import SERVICES
 
@@ -28,3 +30,9 @@ SERVICES.append(ENHANCEMENT)
 
 FACE_DETECTION = (6, 'Face Detection', FaceDetectionService)
 SERVICES.append(FACE_DETECTION)
+
+COMPARE = (7, 'Face Comparison', CompareService)
+SERVICES.append(COMPARE)
+
+VERIFICATION = (8, 'Face Verification', VerificationService)
+SERVICES.append(VERIFICATION)
