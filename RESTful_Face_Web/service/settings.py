@@ -10,7 +10,7 @@ openface_imgDim = 96
 openface_align_path = landmark_model_path
 
 # face alignment (keep same as experiment)
-face_size = (openface_imgDim, openface_imgDim) # have to be a tuple
+face_size = (150, 170)#(openface_imgDim, openface_imgDim) # have to be a tuple
 eye_offset_percentage = [0.25, 0.25]
 
 # face feature dimension
@@ -54,4 +54,11 @@ lbp_lda_w_path = os.path.join(settings.BASE_DIR, 'service', 'lbp', 'W.npy') # 34
 # SVM settings
 svm_c = 1
 svm_kernel = 'linear'
+
+# verification threshold
+openface_NN_H_Threshold = 0.68
+openface_NN_M_Threshold = 0.76
+openface_NN_L_Threshold = 0.85
+openface_NN_Threshold = {'H': openface_NN_H_Threshold, 'M': openface_NN_M_Threshold, 'L': openface_NN_L_Threshold}
+
 

@@ -186,8 +186,8 @@ class Classifier():
 
             features = []
             labels = []
-            for k, person in enumerate(gallery['person']):
-                features_mat = gallery['feature'][k]
+            for idx, person in enumerate(gallery['person']):
+                features_mat = gallery['feature'][idx]
                 feat_num = np.shape(features_mat)[1]
                 features.extend([features_mat[:, i].tolist() for i in range(feat_num)])
                 labels.extend(np.repeat(person.userID, feat_num))
@@ -216,6 +216,7 @@ class Classifier():
                 return {'userID': clf.classes_ if distance[0]>0 else clf.classes_[::-1], 'dis': [np.abs(distance[0]), - np.abs(distance[0])]}, None
         
         topk_indices = np.argsort(distance[0])[::-1][:k]
+        print(distance[0])
         #person = clf.predict([probe_feature[:, 0].tolist(), ])
         #self.log.info(clf.decision_function([probe_feature[:, 0].tolist(), ]))
         return { 'userID': clf.classes_[topk_indices], 'dis': distance[0][topk_indices] }, clf if retrain else None # if retrain, then save the new model
@@ -234,12 +235,27 @@ class Classifier():
         # claim result
         topk_indices = np.argsort(dis)[:k]
         persons = gallery['person'][topk_indices]
-        return {'userID': [person.userID for person in persons], 'dis': np.array(dis)[topk_indices].tolist() }, None
+        result = {'userID': [person.userID for person in persons], 'dis': np.array(dis)[topk_indices].tolist() }
+        
+        # the threshold only support openface embeddings with nearest neighbor classifier
+        service.threshold = None
+        if service.threshold is None or feature_name is not 'DEFAULT':
+            return result, None
+
+        threshold = settings.openface_NN_Threshold[service.threshold]
+        mask = np.array(result['dis']) < threshold
+        result['userID'] = np.array(result['userID'])[mask].tolist()
+        result['dis'] = np.array(result['dis'])[mask].tolist()
+
+        return result, None
+
+
     def _naive_bayes(self, model_set, feature_name, probe_feature, k, service):
         pass
 
-    def _default(self, model_set, feature_name, probe_feature, service):
-        return self._nearest_neighbor(model_set, feature_name, probe_feature, service)
+
+    def _default(self, model_set, feature_name, probe_feature, k, service):
+        return self._nearest_neighbor(model_set, feature_name, probe_feature, k, service)
 
 
 class RecognitionService(BaseService):
@@ -248,6 +264,7 @@ class RecognitionService(BaseService):
     app = None
     feature_name = None
     classifier_name = None
+    threshold = None
 
     log = None
 
@@ -274,6 +291,8 @@ class RecognitionService(BaseService):
                     valid = len(Person.objects.using(app.appID).all()) >= k and k > 0
                 except ValueError:
                     valid = False
+            if 'threshold' in data:
+                valid = data['threshold'].lower() in ['l', 'm', 'h']
             print(valid)
             return valid
         return False
@@ -301,6 +320,9 @@ class RecognitionService(BaseService):
             self.classifier_name = kwargs['data']['classifier'].upper() # must valid classifier name
 
         self.log.info('Use classifier "%s".'%(self.classifier_name))
+
+        if 'threshold' in kwargs['data']:
+            self.threshold = kwargs['data']['threshold'].upper()
 
         # get input data
         probe_feature = self.extractor.extract(Image.open(image), name=self.feature_name).real
