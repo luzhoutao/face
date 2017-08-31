@@ -2,7 +2,7 @@
 from rest_framework import serializers
 # model
 from django.contrib.auth.models import User
-from .models import Person, Face, Command, App, Token2Token
+from .models import Subject, Face, Command, App, Token2Token
 # utils
 from rest_framework.utils import model_meta
 
@@ -20,7 +20,6 @@ class CompanySerializer(serializers.ModelSerializer):
         return company
 
     def update(self, instance, validated_data):
-        # TODO test
         serializers.raise_errors_on_nested_writes('update', self, validated_data)
         info = model_meta.get_field_info(instance)
 
@@ -36,19 +35,18 @@ class Token2TokenSerializer(serializers.ModelSerializer):
         fields = ('duration', 'company')
         read_only_fields = ('duration', 'company')
 
-class PersonSerializer(serializers.HyperlinkedModelSerializer):
+class SubjectSerializer(serializers.HyperlinkedModelSerializer):
     faces = serializers.HyperlinkedRelatedField(many=True, view_name='face-detail', read_only=True)
 
     class Meta:
-        model = Person
-        fields = ('id', 'url', 'userID', 'appID', 'name','faces')
-        read_only_fields = ('id', 'userID', 'appID')
+        model = Subject
+        fields = ('id', 'url', 'subjectID', 'appID', 'subject_name','faces')
+        read_only_fields = ('id', 'subjectID', 'appID')
 
     def create(self, validated_data):
-        return Person.objects.db_manager(validated_data['appID']).create(**validated_data)
+        return Subject.objects.db_manager(validated_data['appID']).create(**validated_data)
 
     def update(self, instance, validated_data):
-        # TODO test
         serializers.raise_errors_on_nested_writes('update', self, validated_data)
 
         for attr, value in validated_data.items():
@@ -61,12 +59,12 @@ class FaceSerializer(serializers.HyperlinkedModelSerializer):
 
     class Meta:
         model = Face
-        fields = ('id', 'url', 'person', 'created_time', 'modified_time', 'image')
-        read_only_fields = ('person', )
+        fields = ('id', 'url', 'subject', 'created_time', 'modified_time', 'image')
+        read_only_fields = ('subject', )
 
     # override to user company's database
     def create(self, validated_data):
-        return Face.objects.db_manager(validated_data['person'].appID).create(**validated_data)
+        return Face.objects.db_manager(validated_data['subject'].appID).create(**validated_data)
 
     # override to use company's database
     def update(self, instance, validated_data):

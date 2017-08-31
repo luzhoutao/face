@@ -8,11 +8,11 @@ from rest_framework.decorators import detail_route
 # parser
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser, FileUploadParser
 # serializers
-from .serializers import CompanySerializer, PersonSerializer, FaceSerializer, CommandSerializer, AppSerializer, Token2TokenSerializer
+from .serializers import CompanySerializer, SubjectSerializer, FaceSerializer, CommandSerializer, AppSerializer, Token2TokenSerializer
 # models
 from django.contrib.auth.models import User
 from . import models
-from .models import Person, Face, Command, App, Feature, ClassifierModel, Token2Token, FeatureGallery
+from .models import Subject, Face, Command, App, Feature, ClassifierModel, Token2Token, FeatureTemplate
 from expiring_token.models import ExpiringToken
 # permissions
 from rest_framework import permissions

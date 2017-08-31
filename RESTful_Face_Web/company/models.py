@@ -81,7 +81,7 @@ class Command(models.Model):
 
 #################### Data For Company ###################
 
-class Person(models.Model):
+class Subject(models.Model):
     '''
     The class to represent a person of a company.
     :param userID: generated automatically by the system
@@ -93,13 +93,13 @@ class Person(models.Model):
     :param created_time, modified_time: self explanatory
     
     '''
-    userID = models.CharField(max_length=50)
+    subjectID = models.CharField(max_length=50)
     appID = models.CharField(max_length=50)
 
     created_time = models.DateTimeField(auto_now_add=True)
     modified_time = models.DateTimeField(auto_now=True)
 
-    name = models.CharField(max_length=50, validators=[RegexValidator(r'^[\w.@+-]+$')])
+    subject_name = models.CharField(max_length=50, validators=[RegexValidator(r'^[\w.@+-]+$')])
     email = models.EmailField(blank=True)
     first_name = models.CharField(max_length=30, blank=True)
     last_name = models.CharField(max_length=30, blank=True)
@@ -146,7 +146,7 @@ def face_file_path(instance, filename):
     return instance.person.get_faces_dir()+'{2}/{3}'.format(instance.person.appID, instance.person.userID, datetime.now().strftime("%y%m%d"), filename)
 
 class Face(models.Model):
-    person = models.ForeignKey(Person, on_delete=models.CASCADE, related_name='faces')
+    subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name='faces')
     image = models.ImageField(upload_to=face_file_path)
     created_time = models.DateField(auto_now_add=True)
     modified_time = models.DateField(auto_now=True)
@@ -178,9 +178,9 @@ class Face(models.Model):
         super().delete(using, keep_parents)
         storage.delete(filename)
 
-class FeatureGallery(models.Model):
-    name = models.CharField(max_length=50)
-    person = models.ForeignKey(Person, on_delete=models.CASCADE)
+class FeatureTemplate(models.Model):
+    feature_name = models.CharField(max_length=50)
+    subject = models.ForeignKey(Subject, on_delete=models.CASCADE)
 
     data = models.CharField(max_length=20000, blank=True)
     created_time = models.DateTimeField(auto_now_add=True)
@@ -211,7 +211,7 @@ class FeatureGallery(models.Model):
 class Feature(models.Model):
     face = models.ForeignKey(Face, related_name='features', on_delete=models.CASCADE)
     data = models.CharField(max_length=20000) # use json dump
-    name = models.CharField(max_length=50) # the name of feature
+    feature_name = models.CharField(max_length=50) # the name of feature
     created_time = models.DateTimeField(auto_now_add=True)
 
     @staticmethod
@@ -238,7 +238,7 @@ def classifier_file_path(instance, filename):
 
 class ClassifierModel(models.Model):
     appID = models.CharField(max_length=50)
-    name = models.CharField(max_length=50)
+    classifier_name = models.CharField(max_length=50)
     feature_name = models.CharField(max_length=50)
     parameter_file = models.FileField(upload_to=classifier_file_path)
     created_time = models.DateTimeField(auto_now_add=True)

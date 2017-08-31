@@ -11,7 +11,7 @@ from rest_framework_swagger.renderers import SwaggerUIRenderer, OpenAPIRenderer
 router = DefaultRouter()
 router.register(r'companies', CompaniesViewSet)
 router.register(r'companies', CompanyViewSet)
-router.register(r'persons', PersonViewSet, base_name='person')
+router.register(r'subjects', PersonViewSet, base_name='subject')
 router.register(r'faces', FaceViewSet, base_name='face')
 router.register(r'commands', CommandViewSet, base_name='command')
 router.register(r'apps', AppViewSet, base_name='app')
