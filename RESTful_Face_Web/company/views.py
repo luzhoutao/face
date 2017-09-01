@@ -45,24 +45,6 @@ myDBManager = MySQLManager()
 class CompaniesViewSet(mixins.ListModelMixin,
                        mixins.CreateModelMixin,
                        viewsets.GenericViewSet):
-    """
-    [See spec.](https://drive.google.com/open?id=0B09e6v5cDBila0x1bkJzMFRuSDg)
-
-    list:
-        Return all the companies.
-        
-    create:
-        Create a new company account.
-
-        parameter
-
-        - username: the name of your company.
-
-        - password: for your company account. (Please remember it!)
-
-        - email: (optional) your company's email address
-
-    """
     queryset = User.objects.using('default').all()
     serializer_class = CompanySerializer
     permission_classes = (CompaniesPermission, )
@@ -78,33 +60,6 @@ class CompanyViewSet(mixins.RetrieveModelMixin,
                      mixins.UpdateModelMixin,
                      mixins.DestroyModelMixin,
                      viewsets.GenericViewSet):
-    """
-    [See spec.](https://drive.google.com/open?id=0B09e6v5cDBila0x1bkJzMFRuSDg)
-
-    retrieve:
-        Return details about a company. (For admin)
-        
-    update:
-        Update details about a company. (For owner)
-        <hr/>
-        parameter
-        - username: the name of your company.
-        - password: for your company account. (Please remember it!)
-        - email: (optional) your company's email address
-        
-    destroy:
-        Delete a company. All app and static files will also be deleted. (For admin)
-        
-    token:
-        Generate expiring token for a company. <i>Default expiring time is 30 days.</i>
-        <hr/>
-        parameter
-        - days: (optional, integer) lasting days
-        - seconds: (optional, integer) lasting seconds
-        
-    authorization:
-        Make a company user one of the staffs of this system. (Able to generate token for other companies)
-    """
     queryset = User.objects.using('default').all()
     serializer_class = CompanySerializer
     permission_classes = (CompanyPermission, )
@@ -122,7 +77,7 @@ class CompanyViewSet(mixins.RetrieveModelMixin,
     def perform_destroy(self, instance):
         apps = App.objects.filter(company=instance, is_active=True)
         for app in apps:
-            persons = Person.objects.using(app.appID)
+            persons = Subject.objects.using(app.appID)
             [ person.delete() for person in persons ]  # this will delete the image file
 
             myDBManager.drop_database(app.appID)   #  this will delete the database file
@@ -169,24 +124,6 @@ class AppViewSet(mixins.ListModelMixin,
                  mixins.RetrieveModelMixin,
                  mixins.DestroyModelMixin,
                  viewsets.GenericViewSet):
-    """
-    [See spec.](https://drive.google.com/open?id=0B09e6v5cDBila0x1bkJzMFRuSDg)
-
-    list:
-        Return the list of all created apps.
-    
-    create:
-        Create a new app. (AppID and a independent database will be created automatically.)
-        <hr/>
-        parameter
-        - app_name: the name of the app.
-        
-    retrieve:
-        Return the detail of an app.
-        
-    destroy:
-        Delete an app. Database will also be deleted.
-    """
 
     serializer_class = AppSerializer
     permission_classes = (permissions.IsAuthenticated, TokenPermission)
@@ -198,11 +135,11 @@ class AppViewSet(mixins.ListModelMixin,
         app = serializer.save(company=self.request.user, appID=generate_unique_id(get_admin()))
 
         myDBManager.create_database(app.appID)
-        myDBManager.create_table(app.appID, Person, 'person')
+        myDBManager.create_table(app.appID, Subject, 'subject')
         myDBManager.create_table(app.appID, Face, 'face')
         myDBManager.create_table(app.appID, Feature, 'feature')
         myDBManager.create_table(app.appID, ClassifierModel, 'classifier')
-        myDBManager.create_table(app.appID, FeatureGallery, 'feature gallery')
+        myDBManager.create_table(app.appID, FeatureTemplate, 'feature template')
         log.info("Database for app %s of company %s (%s) Created!" % (app.app_name, app.company.username, app.company.first_name))
         #uwsgi.reload()
 
@@ -220,62 +157,27 @@ class AppViewSet(mixins.ListModelMixin,
         app.save()
 
 
-class PersonViewSet(mixins.ListModelMixin,
+class SubjectViewSet(mixins.ListModelMixin,
                  mixins.CreateModelMixin,
                  mixins.RetrieveModelMixin,
                     mixins.UpdateModelMixin,
                  mixins.DestroyModelMixin,
                  viewsets.GenericViewSet):
-    """
-    [See spec.](https://drive.google.com/open?id=0B09e6v5cDBila0x1bkJzMFRuSDg)
-
-    list:
-        Return the list of person in the app.
-        <hr/>
-        parameter:
-        - appID: the target app. (Default to the app created earliest)
-        
-    retrieve:
-        Return the detail of a person in the app.
-        <hr/>
-        parameter:
-        - appID: the target app. (Default to the app created earliest)
-        
-    create:
-        Create a new person in the app. A 'userID' will be automatically generated.
-        <hr/>
-        parameter:
-        - name: person's name
-        - appID: of the app where the person will be stored.
-        
-    update:
-        Update the detail of the person.
-        <hr/>
-        parameter:
-        - appID: the target app. (Default to the app created earliest)
-        - name: person's name
-        
-    delete:
-        Delete a person from the app.
-        <hr/>
-        parameter:
-        - appID: the target app. (Default to the app created earliest)
-    """
-    serializer_class = PersonSerializer
+    serializer_class = SubjectSerializer
     permission_classes = (permissions.IsAuthenticated, TokenPermission)
 
     # override to using specific database
     def get_queryset(self):
         app = models.get_target_app(self.request.user, appID=self.request.data['appID'] if 'appID' in self.request.data else None)
         if app==None:
-            raise ValidationError({'Person': 'App Not Found!'})
-        return Person.objects.using(app.appID).all()
+            raise ValidationError({'Subject': 'App Not Found!'})
+        return Subject.objects.using(app.appID).all()
 
     # override to pass generated random ID
     def perform_create(self, serializer):
         app = models.get_target_app(self.request.user, appID=self.request.data['appID'] if 'appID' in self.request.data else None)
         if app == None:
-            raise ValidationError({'Create Person': 'App Not Found!'})
+            raise ValidationError({'Create Subject': 'App Not Found!'})
         serializer.save(userID=generate_unique_id(self.request.user), appID=app.appID)
 
     # override to do partial update
@@ -288,43 +190,6 @@ class PersonViewSet(mixins.ListModelMixin,
 
 
 class FaceViewSet(viewsets.ModelViewSet):
-    """
-    [See spec.](https://drive.google.com/open?id=0B09e6v5cDBila0x1bkJzMFRuSDg)
-
-    list:
-        Return a list of faces.
-        <hr/>
-        parameter:
-        - appID: the target app. (Default to the app created earliest)
-        - name: person's name. (Default to all persons)
-        - userID: person's userID. (Default to all persons)
-        
-    retrieve:
-        Return the detail of a face.
-        <hr/>
-        parameter:
-        - appID: the target app. (Default to the app created earliest)
-        - name: person's name. (Default to all persons)
-        - userID: person's userID. (Default to all persons)
-        
-    create:
-        Create a face for a person.
-        <hr/>
-        parameter:
-        - appID: the target app. (Default to the app created earliest)
-        - name: person's name. (Default to all persons)
-        - userID: person's userID. (Default to all persons)
-        - face: the face image
-        
-    update:
-        update a face for person
-        <hr/>
-        parameter:
-        - appID: the target app. (Default to the app created earliest)
-        - name: person's name. (Default to all persons)
-        - userID: person's userID. (Default to all persons)
-        - image: the face image
-    """
     serializer_class = FaceSerializer
     permission_classes = (permissions.IsAuthenticated, TokenPermission)
     parser_classes = (MultiPartParser, FormParser, JSONParser, FileUploadParser)
@@ -334,10 +199,10 @@ class FaceViewSet(viewsets.ModelViewSet):
         app = models.get_target_app(self.request.user, appID=self.request.data['appID'] if 'appID' in self.request.data else None)
         if app==None:
             raise ValidationError({'Person': 'App not found!'})
-        person = self.__get_person(app, self.request.data)
+        subject = self.__get_subject(app, self.request.data)
 
         # get person's all faces
-        return Face.objects.using(app.appID).filter(person__in=person)
+        return Face.objects.using(app.appID).filter(person__in=subject)
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -347,8 +212,8 @@ class FaceViewSet(viewsets.ModelViewSet):
                                     appID=self.request.data['appID'] if 'appID' in self.request.data else None)
         if app==None:
             raise ValidationError({'Create Face', 'App Not Found!'})
-        person = self.__get_person(app, self.request.data)
-        if len(person) != 1:
+        subject = self.__get_subject(app, self.request.data)
+        if len(subject) != 1:
             log.error('No person specified!')
             raise ValidationError({'FaceViewSet': 'Unique person name or id need to be given!'})
 
@@ -364,8 +229,8 @@ class FaceViewSet(viewsets.ModelViewSet):
             except:
                 return Response(status=status.HTTP_400_BAD_REQUEST)
 
-        serializer.save(person=person[0], image=image)
-        person[0].save() # this will update person's modified_time
+        serializer.save(person=subject[0], image=image)
+        subject[0].save() # this will update person's modified_time
         app.save() # this will update app's modified_time
 
         headers = self.get_success_headers(serializer.data)
@@ -375,14 +240,14 @@ class FaceViewSet(viewsets.ModelViewSet):
         serializer.save(image=None if 'image' not in self.request.data else self.request.data['image'])
 
     # filter to get company's faces
-    def __get_person(self, app, data):
-        person = Person.objects.using(app.appID)
+    def __get_subject(self, app, data):
+        subject = Subject.objects.using(app.appID)
         if 'name' in data:
-            person = person.filter(name=data['name'])
+            subject = subject.filter(name=data['subject_name'])
         elif 'userID' in self.request.data:
-            person = person.filter(userID=data['userID'])
+            subject = subject.filter(userID=data['subjectID'])
 
-        return [p for p in person]
+        return [s for s in subject]
 
 
 def service_bind(service_config):
@@ -414,18 +279,6 @@ def log_command():
 class CommandViewSet(mixins.ListModelMixin,
                      mixins.RetrieveModelMixin,
                      viewsets.GenericViewSet):
-    """
-    [See spec.](https://drive.google.com/open?id=0B09e6v5cDBila0x1bkJzMFRuSDg)
-
-    list:
-        Return all comments of the company.
-        
-    retrieve:
-        Return the detail of the company.
-        
-    quality_check:
-        Check the quality of uploaded image.
-    """
     serializer_class = CommandSerializer
     permission_classes = (permissions.IsAuthenticated, )
 
@@ -478,35 +331,3 @@ class CommandViewSet(mixins.ListModelMixin,
         results = service.execute(request=request, data=request.data, app=app)
         log.info("Service: "+services.VERIFICATION[1])
         return Response(results)
-
-'''
-    @list_route(methods=['post', 'put'], permission_classes=[TokenPermission, ])
-    @log_command(services.LANDMARK_DETECTION)
-    def landmark_detection(self, request, service):
-        results = service.execute()
-        return Response(results)
-
-    @list_route(methods=['post', 'put'])
-    @log_command(services.ATTRIBUTE_PREDICATE)
-    def attribute_predication(self, request, service):
-        results = service.execute()
-        return Response(results)
-
-    @list_route(methods=['post', 'put'])
-    @log_command(services.RECOGNITION)
-    def recognition(self, request, service):
-        results = service.execute()
-        return Response(results)
-
-    @list_route(methods=['post', 'put'])
-    @log_command(services.FEATURE_EXTRACTION)
-    def feature_extraction(self, request, service):
-        results = service.execute()
-        return Response(results)
-
-    @list_route(methods=['post', 'put'])
-    @log_command(services.ENHANCEMENT)
-    def enhancement(self, request, service):
-        results = service.execute()
-        return Response(results)
-'''

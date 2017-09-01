@@ -8,7 +8,7 @@ from numpy import linalg
 import numpy as np
 import json
 # model
-from company.models import Face, Feature, Person
+from company.models import Face, Feature, Subject, FeatureTemplate
 
 
 class VerificationService(BaseService):
@@ -24,9 +24,9 @@ class VerificationService(BaseService):
 
         if valid:
             face = Image.open(data['face'])
-            queryset = Person.objects.using(app.appID).filter(userID=data['userID'])
+            subject_set = Subject.objects.using(app.appID).filter(userID=data['userID'])
 
-            valid = tuple(face.size) == tuple(settings.face_size) and len(queryset) == 1
+            valid = tuple(face.size) == tuple(settings.face_size) and len(subject_set) == 1
 
             if valid and 'threshold' in data:
                 valid = data['threshold'].lower() in ['l', 'm', 'h']
@@ -42,8 +42,35 @@ class VerificationService(BaseService):
         else:
             threshold = settings.openface_NN_L_Threshold
 
-        person = Person.objects.using(app.appID).get(data['userID'])
-        template = self._get_person_gallery(person=person, app=app, need_mean=True)
+        subject = Subject.objects.using(app.appID).get(data['subjectID'])
+
+        try:
+            template = FeatureTemplate.objects.using(self.app.appID).get(subject=subject, feature_name='DEFAULT')
+            if template.modified_time < subject.modified_time:
+                self.log.info('\tUpdate person "%s" gallery.' % (subject.subjectID))
+                template_data = self._get_subject_features(subject=subject, feature_name='DEFAULT', app=self.app,
+                                                  need_mean=True)
+                if template_data is None:  # gallery is updated and no faces left
+                    return {'info': 'The subject has no face enrolled'}
+                else:
+                    template.data = json.dumps(template_data.tolist())
+                    template.save()
+            else:
+                # no need to re-calculate
+                # print('\tuse saved person gallery.')
+
+                template_data = np.array(json.loads(template.data))
+        except:
+            template_data = self._get_subject_features(subject=subject, feature_name='DEFAULT', app=self.app,
+                                                  need_mean=True)
+            if template is None:
+                mask[k] = False
+            else:
+                template = FeatureTemplate.objects.db_manager(self.app.appID).create(subject=subject,
+                                                                                     feature_name=self.feature_name,
+                                                                                     data=json.dumps(template.tolist()))
+                gallery.append(template)
+
 
         face = Image.open(data['face'])
         feature = self.extractor.extract(face, 'DEFAULT')
