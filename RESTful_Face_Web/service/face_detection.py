@@ -70,8 +70,9 @@ class FaceDetectionService(BaseService):
 
     def is_valid_input_data(self, data=None):
         # check required user input
-        has_image = ('image' in data)
-        return has_image
+        if 'image' not in data:
+            return False, 'Field <image> is required.'
+        return True, ''
 
     def execute(self, *args, **kwargs):
         """

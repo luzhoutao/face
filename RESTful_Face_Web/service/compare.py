@@ -12,17 +12,19 @@ class CompareService(BaseService):
         assert(data is not None)
         assert(app is not None)
 
-        valid = 'face1' in data and 'face2' in data
+        if 'face1' not in data:
+            return False, 'Field <face1> is required.'
+        if 'face2' not in data:
+            return False, 'Field <face2> is required.'
 
-        if valid:
-            face1 = Image.open(data['face1'])
-            face2 = Image.open(data['face2'])
-            valid = tuple(face1.size) == tuple(settings.face_size) and tuple(face2.size) == tuple(settings.face_size)
+        face1 = Image.open(data['face1'])
+        face2 = Image.open(data['face2'])
+        if not (tuple(face1.size) == tuple(settings.face_size) and tuple(face2.size) == tuple(settings.face_size)):
+            return False, 'Face image has a wrong size. It should be '+ str(settings.face_size) + '.'
 
-            if valid:
-                if 'threshold' in data:
-                    valid = data['threshold'].lower() in ['l', 'm', 'h']
-        return valid
+        if 'threshold' in data and data['threshold'].lower() not in ['l', 'm', 'h']:
+            return False, 'Threshold(%s) not understand.'%(data['threshold'])
+        return True, ''
 
 
     def execute(self, *args, **kwargs):
@@ -31,10 +33,9 @@ class CompareService(BaseService):
         assert('face1' in data)
         assert('face2' in data)
 
-        if 'threshold' not in data:
-            threshold = settings.openface_NN_L_Threshold
-        else:
-            threshold = settings.openface_NN_Threshold[data['threshold']]
+        threshold = settings.openface_NN_L_Threshold
+        if 'threshold' in data:
+            threshold = settings.openface_NN_Threshold[data['threshold'].upper()]
 
         extractor = FeatureExtractor()
 
@@ -50,4 +51,5 @@ class CompareService(BaseService):
             result = 1
         else:
             result = 0
+        print(result)
         return {'result': result}

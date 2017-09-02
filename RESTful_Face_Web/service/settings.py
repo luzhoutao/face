@@ -21,18 +21,21 @@ pca_name = 'PCA'
 lda_name = 'LDA'
 hog_name = 'HOG'
 lbp_name = 'LBP'
-all_feature_names = [pca_name, lda_name, hog_name, lbp_name]
+default_name = 'DEFAULT'
+all_feature_names = [pca_name, lda_name, hog_name, lbp_name, default_name]
 
 # classifier name
 nearest_neighbor_name = 'NEAREST_NEIGHBOR'
 naive_bayes_name = 'NAIVE_BAYES'
 svm_name = 'SVM'
-all_classifier_names = [nearest_neighbor_name, naive_bayes_name, svm_name]
-need_template_classifiers = [nearest_neighbor_name, ]
+default_name = 'DEFAULT'
+all_classifier_names = [nearest_neighbor_name, svm_name, default_name]
+need_template_classifiers = [nearest_neighbor_name, default_name]
+need_training_classifiers = [svm_name, ]
 
 # HOG settings
 hog_ori = 8
-hog_cell = (30, 34)
+hog_cell = (16, 16)
 hog_region = (1, 1)
 
 # model path
@@ -45,7 +48,7 @@ lda_mean_path = os.path.join(settings.BASE_DIR, 'service', 'lda', 'mean.npy') # 
 pca_k = 206 # cumulative 95%
 
 # LBP settings
-lbp_regions_num = [6, 10]
+lbp_regions_num = [6, 6]
 lbp_neighbors = 8
 lbp_radius = 2
 lbp_method = 'nri_uniform'
@@ -62,3 +65,7 @@ openface_NN_L_Threshold = 0.85
 openface_NN_Threshold = {'H': openface_NN_H_Threshold, 'M': openface_NN_M_Threshold, 'L': openface_NN_L_Threshold}
 
 
+# error code
+NO_TEMPLATE_ERROR = 4501
+NO_CLASSIFIER_ERROR = 4502
+NOT_ENOUGH_SUBJECT_ERROR = 4503

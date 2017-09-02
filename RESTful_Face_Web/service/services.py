@@ -7,6 +7,7 @@ from .face_detection import FaceDetectionService
 from .recognition import RecognitionService
 from .compare import CompareService
 from .verification import VerificationService
+from .enrollment import EnrollmentService
 
 from company.models import SERVICES
 
@@ -36,3 +37,6 @@ SERVICES.append(COMPARE)
 
 VERIFICATION = (8, 'Face Verification', VerificationService)
 SERVICES.append(VERIFICATION)
+
+ENROLLMENT = (9, 'Gallery Enrollment', EnrollmentService)
+SERVICES.append(ENROLLMENT)

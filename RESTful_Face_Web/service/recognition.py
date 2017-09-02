@@ -11,16 +11,12 @@ from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
 from PIL import Image
 # string-list convertor
 import json
-# hog feature
-from skimage import feature
-# lbp feature
-from skimage.feature import local_binary_pattern
-# svm classifier
-from sklearn import svm
-from sklearn.externals import joblib
+# feature
+from .extraction import FeatureExtractor
+# classifier
+from .classification import Classifier
 # save file
 import tempfile
-from django.core.files import File
 # logging
 import logging
 log = logging.getLogger(__name__)
@@ -31,241 +27,9 @@ import dlib
 # time
 from datetime import datetime
 
-class VerbosePrinter():
-    
-    def __init__(self, app):
-        self.app = app
-    
-    def info(self, prompt):
-        log.info("[service]Recognition, [company]%s, [app]%s: %s"%(self.app.company.username, self.app.appID, prompt))
-
-
-class FeatureExtractor:
-    _extractors = {}
-
-    def __init__(self):
-        self._extractors[settings.pca_name] = self._pca
-        self._extractors[settings.lda_name] = self._lda
-        self._extractors[settings.hog_name] = self._hog
-        self._extractors[settings.lbp_name] = self._lbp
-        self._extractors['DEFAULT'] = self._default
-        self.pca_mean = None
-        self.pca_w = None
-        self.lda_mean = None
-        self.lda_w = None
-        self.lbp_w = None
-        self.openface_nn = None
-
-    def extract(self, face, name):
-        '''
-        This is the public interface for call the extraction function
-        :param face: 
-            the Image object of cropped valid face
-        :param name: 
-            the method the extractor uses
-        :return: 
-            the representation vector. (Size is specific to different feature algorithms)
-        '''
-        return self._extractors[name](face)
-
-    def _pca(self, face):
-        assert (face.size == settings.face_size)
-        face_array = np.array(face.convert('L'))
-        face.close()
-
-        if self.pca_mean is None:
-            print('open pca mean')
-            self.pca_mean = np.load(settings.pca_mean_path)
-        if self.pca_w is None:
-            print('open pca w')
-            self.pca_w = np.load(settings.pca_w_path)[:, :settings.pca_k]
-        feature = np.dot(self.pca_w.T, face_array.reshape([-1, 1]) - self.pca_mean)  # 206 x 1
-        return feature
-
-
-    def _lda(self, face):
-        assert(face.size == settings.face_size)
-        face_array = np.array(face.convert('L'))
-        face.close()
-
-        if self.lda_mean is None:
-            self.lda_mean = np.load(settings.lda_mean_path)
-        if self.lda_w is None:
-            self.lda_w  = np.load(settings.lda_w_path)
-        feature = np.dot(self.lda_w.T, face_array.reshape([-1, 1]) - self.lda_mean)  # 257 x 1
-        return feature
-
-    def _lbp(self, face):
-        assert(face.size == settings.face_size)
-        face_array = np.array(face.convert('L'))
-        face.close()
-
-        # extract lbp descriptor
-        [per_width, per_height] = [int(settings.face_size[0] / settings.lbp_regions_num[0]),
-                                   int(settings.face_size[1] / settings.lbp_regions_num[1])]
-        regions = [face_array[r * per_height:(r + 1) * per_height, c * per_width:(c + 1) * per_width] for c in
-                   range(settings.lbp_regions_num[0]) for r in range(settings.lbp_regions_num[1])]
-
-        patterns = [local_binary_pattern(region, settings.lbp_neighbors, settings.lbp_radius, settings.lbp_method) for region in regions]
-
-        bin_range = int(np.ceil(np.max(patterns)))
-        hists = [np.histogram(pattern.ravel(), bins=bin_range)[0] for pattern in patterns]  # ? normalize
-        feature = np.vstack(hists).reshape([-1, 1])  # row - region , column - labels
-
-        # use lda to do dimensionality reduction
-        if self.lbp_w is None:
-            self.lbp_w = np.load(settings.lbp_lda_w_path)
-        feature = np.dot(self.lbp_w.T, feature)  # 257 x 1
-        return feature
-
-    def _hog(self, face):
-        assert(face.size == settings.face_size)
-        face_array = np.array(face.convert('L'))
-        face.close()
-
-        hog = feature.hog(face_array, orientations=settings.hog_ori, pixels_per_cell=settings.hog_cell, cells_per_block=settings.hog_region)
-
-        return hog.reshape([-1, 1])  # 200 x 1
-
-    def _default(self, face):
-        assert(face.size == settings.face_size)
-        face_array = np.array(face)
-        face.close()
-
-        if self.openface_nn is None:
-            self.openface_nn = openface.TorchNeuralNet(settings.openface_model_path, imgDim=settings.openface_imgDim)
-
-        alignedFace = cv2.resize(face_array, (settings.openface_imgDim, settings.openface_imgDim))
-        rep = self.openface_nn.forward(alignedFace)
-        return rep.reshape([-1, 1])
-
-
-class Classifier():
-    _classifiers = {}
-    log = None
-
-    def __init__(self):
-        self._classifiers[settings.nearest_neighbor_name] = self._nearest_neighbor
-        self._classifiers[settings.svm_name] = self._svm
-        self._classifiers[settings.naive_bayes_name] = self._naive_bayes
-        self._classifiers['DEFAULT'] = self._default
-
-    def classify(self, classifier_name, model_set, feature_name, probe_feature, k, service):
-        '''
-        This is the public interface to call all kinds of classifier
-        :param classifier_name: the name of classifier
-        :param model_set: the model set of classifiers
-        :param gallery: te gallery of (features, persons)
-            features[i] is the matrix (2-d array) formed from features of persona[i]'s all faces
-            features[i] is with dimensionality of (d, m) where d is the size of feature per face and m is the number of samples
-            persona[i] is the instance of Person model in company.models
-        :param probe_feature: the feature of the probe image
-            it is a vector of a single feature with size of d
-        :return: 
-            the multi-class classification result - person or person's info.
-        '''
-        self.log = service.log
-        return self._classifiers[classifier_name](model_set, feature_name, probe_feature, k, service)
-
-    def _svm(self, model_set, feature_name, probe_feature, k, service):
-        model = model_set.filter(feature_name=feature_name, classifier_name=settings.svm_name)
-
-        retrain = len(model) == 0
-        if not retrain:
-            assert(len(model)==1)
-            retrain = service.app.update_time > model[0].modified_time
-
-        self.log.info('Retrain SVM for %s[%s]'%(feature_name, 'v' if retrain else 'x'))
-
-        if retrain:
-            start = datetime.now()
-            gallery = service.get_gallery(need_template=False)
-            if gallery is None:
-                return {'info': 'No face enrolled.'}, None
-            self.log.info('Retrieve gallery time: %s'%(datetime.now() - start))
-
-            features = []
-            labels = []
-            for idx, subject in enumerate(gallery['subjects']):
-                features_mat = gallery['feature'][idx]
-                feat_num = np.shape(features_mat)[1]
-                features.extend([features_mat[:, i].tolist() for i in range(feat_num)])
-                labels.extend(np.repeat(subject.subjectID, feat_num))
-
-            clf = svm.SVC(C=settings.svm_c, kernel=settings.svm_kernel, probability=True, decision_function_shape='ovr')
-
-            start = datetime.now()
-            try:
-                clf.fit(features, labels)
-            except ValueError:
-                return {'info': 'Only one class'}, None
-            self.log.info("SVM (feature shape: %s)training time: %s"%(np.shape(features), datetime.now() - start))
-
-        else:
-            clf = joblib.load(model[0].parameter_file)
-            #mean = joblib.load(model[0].additional_data)
-            model[0].parameter_file.close()
-            #model[0].additional_data.close()
-
-        distance = clf.decision_function([probe_feature[:, 0].tolist(), ])
-
-        if len(np.shape(distance)) == 1:
-            if k == 1:
-                return {'subjectID': clf.classes_[int(distance[0]<0)], 'dis': []}, None
-            if k == 2:
-                return {'subjectID': clf.classes_ if distance[0]>0 else clf.classes_[::-1], 'dis': [np.abs(distance[0]), - np.abs(distance[0])]}, None
-        
-        topk_indices = np.argsort(distance[0])[::-1][:k]
-        print(distance[0])
-        #person = clf.predict([probe_feature[:, 0].tolist(), ])
-        #self.log.info(clf.decision_function([probe_feature[:, 0].tolist(), ]))
-        return { 'subjectID': clf.classes_[topk_indices], 'dis': distance[0][topk_indices] }, clf if retrain else None # if retrain, then save the new model
-
-    def _nearest_neighbor(self, model_set, feature_name, probe_feature, k, service):
-        gallery = service.get_gallery(need_template=True)
-        if gallery is None:
-            return {'info': 'No face enrolled.'}, None
-        #print('NN gallery feature: ', len(gallery['feature']), [np.shape(g) for g in gallery['feature']])
-        #print('NN gallery persons: ', gallery['person'])
-        #print('NN gallery update time: ', gallery['update_time'])
-        dis = [ linalg.norm(template.reshape([-1, 1]) - probe_feature.reshape([-1, 1])) for template in gallery['feature'] ]
-
-        self.log.info("Use nearest neighbor.")
-
-        # claim result
-        topk_indices = np.argsort(dis)[:k]
-        persons = gallery['person'][topk_indices]
-        result = {'subjectID': [person.subjectID for person in persons], 'dis': np.array(dis)[topk_indices].tolist() }
-        
-        # the threshold only support openface embeddings with nearest neighbor classifier
-        if service.threshold is None or feature_name is not 'DEFAULT':
-            return result, None
-
-        threshold = settings.openface_NN_Threshold[service.threshold]
-        mask = np.array(result['dis']) < threshold
-        result['subjectID'] = np.array(result['subjectID'])[mask].tolist()
-        result['dis'] = np.array(result['dis'])[mask].tolist()
-
-        return result, None
-
-
-    def _naive_bayes(self, model_set, feature_name, probe_feature, k, service):
-        pass
-
-
-    def _default(self, model_set, feature_name, probe_feature, k, service):
-        return self._nearest_neighbor(model_set, feature_name, probe_feature, k, service)
-
-
 class RecognitionService(BaseService):
     extractor = FeatureExtractor()
     classifiers = Classifier()
-    app = None
-    feature_name = None
-    classifier_name = None
-    threshold = None
-
-    log = None
 
     def is_valid_input_data(self, data=None, app=None):
         '''
@@ -277,151 +41,102 @@ class RecognitionService(BaseService):
         assert(data is not None)
         assert(app is not None)
 
-        if 'face' in data:
-            face = Image.open(data['face'])
-            valid = tuple(face.size) == tuple(settings.face_size)
-            if 'feature' in data:
-                valid = valid and (data['feature'].upper() in settings.all_feature_names)
-            if 'classifier' in data:
-                valid = valid and (data['classifier'].upper() in settings.all_classifier_names)
-            if 'k' in data:
-                try:
-                    k = int(data['k'])
-                    valid = len(Subject.objects.using(app.appID).all()) >= k and k > 0
-                except ValueError:
-                    valid = False
-            if 'threshold' in data:
-                valid = data['threshold'].lower() in ['l', 'm', 'h']
-            print(valid)
-            return valid
-        return False
+        if 'face' not in data:
+            return False, '<face> is required.'
+
+        face = Image.open(data['face'])
+        if not (tuple(face.size) == tuple(settings.face_size)):
+            return False, 'Face image has a wrong size' + str(face.size) + '. It should be '+ str(settings.face_size) + '.'
+
+        if 'feature' in data and (data['feature'].upper() not in settings.all_feature_names):
+            return False, 'Feature name is invalid. Valid options: ' + ', '.join(settings.all_feature_names) + '.'
+        
+        if 'classifier' in data and (data['classifier'].upper() not in settings.all_classifier_names):
+            return False, 'Classifier name is invalid. Valid options: ' + ','.join(settings.all_classifier_names) + '.'
+
+        if 'k' in data:
+            try:
+               k = int(data['k'])
+               if len(Subject.objects.using(app.appID).all()) < k and k <= 0:
+                   return False, 'k is invalid. Must within [1, len(subjects)]'
+            except ValueError:
+                return False, 'k should be a integer.'
+
+        if 'threshold' in data and data['threshold'].lower() not in ['l', 'm', 'h']:
+            return False, 'Threshold(%s) not understand.'%(data['threshold'])
+        return True, ''
+
 
     def execute(self, *args, **kwargs):
-
-        # parse arguments
         assert('data' in kwargs)
         assert('app' in kwargs)
-        image = kwargs['data']['face']
-        self.app = kwargs['app']
+
+        face_image = Image.open(kwargs['data']['face'])
+        app = kwargs['app']
         request = kwargs['request']
+
+        # top k 
         k = 1 if 'k' not in kwargs['data'] else int(kwargs['data']['k'])
 
-        self.log = VerbosePrinter(self.app)
-
-        self.feature_name = 'DEFAULT'
+        # feature
+        feature_name = 'DEFAULT'
         if 'feature' in kwargs['data']:
-            self.feature_name = kwargs['data']['feature'].upper() # must valid feature name
-  
-        self.log.info('Use feature "%s".'%(self.feature_name))
+            feature_name = kwargs['data']['feature'].upper() # must valid feature name
 
-        self.classifier_name = 'DEFAULT'
+        log.info('Use feature "%s".'%(feature_name))
+
+        # classifier
+        classifier_name = 'DEFAULT'
         if 'classifier' in kwargs['data']:
-            self.classifier_name = kwargs['data']['classifier'].upper() # must valid classifier name
+            classifier_name = kwargs['data']['classifier'].upper() # must valid classifier name
 
-        self.log.info('Use classifier "%s".'%(self.classifier_name))
+        log.info('Use classifier "%s".'%(classifier_name))
 
+        # threshold
+        threshold = None
         if 'threshold' in kwargs['data']:
-            self.threshold = kwargs['data']['threshold'].upper()
+            threshold = settings.openface_NN_Threshold[kwargs['data']['threshold'].upper()]
 
         # get input data
-        probe_feature = self.extractor.extract(Image.open(image), name=self.feature_name).real
-        self.log.info('probe_feature shape: %s'%(str(np.shape(probe_feature))))
+        probe_feature = self.extractor.extract(face_image, name=feature_name).real
+        log.info('probe_feature shape: %s'%(str(np.shape(probe_feature))))
 
         # retrieve model and classify
-        model_set = ClassifierModel.objects.using(self.app.appID)
-        result, model = self.classifiers.classify(self.classifier_name, model_set, self.feature_name, probe_feature, k, self)
+        gallery = None
+        template_outdate = False
+        classifier_outdate = False
+        if classifier_name in settings.need_template_classifiers:
+            templates = FeatureTemplate.objects.using(app.appID).filter(feature_name=feature_name) # check if outdated
+
+            if len(templates) == 0:
+                return {'info': 'No template found. Please upload face images and enroll them.', 'error_code': settings.NO_TEMPLATE_ERROR}
+
+            gallery = {'templates': [], 'subjects': []}
+            for template in templates:
+                if template.modified_time < template.subject.modified_time:
+                    template_outdate = True
+                gallery['templates'].append(np.array(json.loads(template.data)))
+                gallery['subjects'].append(template.subject.subjectID)
+
+        classifier_models = ClassifierModel.objects.using(app.appID).filter(feature_name=feature_name, classifier_name=classifier_name, appID=app.appID)
+        assert(len(classifier_models)<2)
+        if len(classifier_models) == 0:
+            model = None
+        else:
+            model = classifier_models[0]
+            if model.modified_time < app.update_time:
+                classifier_outdate = True
         
-        # save the classifier model if needed
-        if model is not None:
-            tmpfile = tempfile.TemporaryFile(mode='w+b')
-            joblib.dump(model, tmpfile)
-            model, created = ClassifierModel.objects.db_manager(self.app.appID).update_or_create(feature_name=self.feature_name, classifier_name=self.classifier_name, appID=self.app.appID,
-                                                                           defaults={'parameter_file': File(tmpfile)})
-            tmpfile.close()
-            self.log.info('New model is saved.')
+        results = self.classifiers.classify(probe_feature, classifier_name, k, model=model, gallery=gallery, threshold=threshold)
+        
+        tmp = []
+        if template_outdate:
+            tmp.append('template')
+        if classifier_outdate:
+            tmp.append('classifier ' + classifier_name)
+        if len(tmp) != 0:
+            warning = ' and '.join(tmp) + ' outdated. Please use /command/enroll/ to update!'
+            results['warning'] = warning
+        return results
 
-        return result
-
-    def get_gallery(self, need_template):
-        subjects = [p for p in Subject.objects.using(self.app.appID).all()]
-        #print('get_gallery(): person - ', persons)
-
-        gallery = []
-
-        mask = np.empty(len(subjects), dtype=np.bool)
-        mask.fill(True)
-        for k, subject in enumerate(subjects):
-            if not need_template:
-                features = self._get_subject_features(subject=subject, feature_name=self.feature_name, app=self.app, need_mean=False)
-                if features is None:
-                    mask[k] = False
-                else:
-                    gallery.append(features)
-                continue
-
-            # need template
-            try:
-                template = FeatureTemplate.objects.using(self.app.appID).get(subject=subject, feature_name=self.feature_name)
-                if template.modified_time < subject.modified_time:
-                    self.log.info('\tUpdate person "%s" gallery.'%(subject.subjectID))
-                    template = self._get_subject_features(subject=subject, feature_name=self.feature_name, app=self.app,
-                                                       need_mean=True)
-                    if template is None:  # gallery is updated and no faces left
-                        mask[k] = False
-                    else:
-                        self.log.info('\tUpdate person "%s" gallery.'%(subject.subjectID))
-                        template.data = json.dumps(template.tolist())
-                        template.save()
-                        gallery.append(template)
-                else:
-                    # no need to re-calculate
-                    #print('\tuse saved person gallery.')
-                    gallery.append(np.array(json.loads(template.data)))
-            except ObjectDoesNotExist:
-                template = self._get_subject_features(person=person, feature_name=self.feature_name, app=self.app, need_mean=True)
-                if template is None:
-                    mask[k] = False
-                else:
-                    template = FeatureTemplate.objects.db_manager(self.app.appID).create(subject=subject, feature_name=self.feature_name,
-                                                                                  data=json.dumps(template.tolist()))
-                    gallery.append(template)
-
-        subjects = np.array(subjects)[mask]
-
-        if len(subjects) == 0:
-            return None
-
-        return {'feature': gallery,
-                   'subject': subjects,
-                   'update_time': self.app.update_time}
-
-    def _get_subject_features(self, subject=None, feature_name=None, app=None, need_mean=True):
-        if subject is None or feature_name is None or app is None:
-            return None
-
-        faces= [face for face in Face.objects.using(app.appID).filter(subject=subject)]
-
-        if len(faces)==0:
-            return None
-
-        features = np.hstack([self._get_face_features(app.appID, face, feature_name=feature_name)
-                                   for face in faces])
-        if need_mean:
-            features = np.mean(features, axis=1).reshape([-1, 1])
-
-        return features
-
-    def _get_face_features(self, appID, face, feature_name):
-        result = Feature.objects.using(appID).filter(face=face, feature_name=feature_name)
-        if len(result) == 0:  # if not found, calculate and save
-            with Image.open(face.image) as face_image:
-                result = self.extractor.extract(face_image, name=feature_name).real
-                face.image.close()
-            #'For checking currently opened files'
-            # import psutil
-            # p = psutil.Process(os.getpid())
-            # print(p.open_files())
-            Feature.objects.db_manager(appID).create(face=face, feature_name=feature_name, data=json.dumps(result.tolist()))
-        else:  # if found, read
-            result = np.array(json.loads(result[0].data))
-        return result # numpy ndarray
+        

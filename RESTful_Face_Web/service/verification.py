@@ -19,96 +19,49 @@ class VerificationService(BaseService):
         assert(data is not None)
         assert(app is not None)
 
-        valid = 'face' in data and 'userID' in data
+        if 'face' not in data:
+            return False, 'Field <face> is required.'
+ 
+        if 'subjectID' not in data:
+            return False, 'Field <subjectID> is required.'
 
+        face = Image.open(data['face'])
+        subject_set = Subject.objects.using(app.appID).filter(subjectID=data['subjectID'])
 
-        if valid:
-            face = Image.open(data['face'])
-            subject_set = Subject.objects.using(app.appID).filter(userID=data['userID'])
+        if not (tuple(face.size) == tuple(settings.face_size)):
+            return False, 'Face image has a wrong size' + str(face.size) + '. It should be '+ str(settings.face_size) + '.'
 
-            valid = tuple(face.size) == tuple(settings.face_size) and len(subject_set) == 1
-
-            if valid and 'threshold' in data:
-                valid = data['threshold'].lower() in ['l', 'm', 'h']
-        return valid
+        if 'threshold' in data and data['threshold'].lower() not in ['l', 'm', 'h']:
+            return False, 'Threshold(%s) not understand.'%(data['threshold'])
+        return True, ''
 
 
     def execute(self, *args, **kwargs):
         app = kwargs['app']
         data = kwargs['data']
+        
+        face_image = Image.open(data['face'])
 
         if 'threshold' in data:
             threshold = settings.openface_NN_Threshold[data['threshold']]
         else:
             threshold = settings.openface_NN_L_Threshold
 
-        subject = Subject.objects.using(app.appID).get(data['subjectID'])
+        subject = Subject.objects.using(app.appID).get(subjectID=data['subjectID'])
 
-        try:
-            template = FeatureTemplate.objects.using(self.app.appID).get(subject=subject, feature_name='DEFAULT')
-            if template.modified_time < subject.modified_time:
-                self.log.info('\tUpdate person "%s" gallery.' % (subject.subjectID))
-                template_data = self._get_subject_features(subject=subject, feature_name='DEFAULT', app=self.app,
-                                                  need_mean=True)
-                if template_data is None:  # gallery is updated and no faces left
-                    return {'info': 'The subject has no face enrolled'}
-                else:
-                    template.data = json.dumps(template_data.tolist())
-                    template.save()
-            else:
-                # no need to re-calculate
-                # print('\tuse saved person gallery.')
+        template = subject.templates.all().filter(feature_name=settings.default_name)
+        assert(len(template)<2)
+        if len(template) == 0:
+            return {'info': 'Please enroll the gallery using /commands/enroll/ ', 'error_code': settings.NO_TEMPLATE_ERROR}
 
-                template_data = np.array(json.loads(template.data))
-        except:
-            template_data = self._get_subject_features(subject=subject, feature_name='DEFAULT', app=self.app,
-                                                  need_mean=True)
-            if template is None:
-                mask[k] = False
-            else:
-                template = FeatureTemplate.objects.db_manager(self.app.appID).create(subject=subject,
-                                                                                     feature_name=self.feature_name,
-                                                                                     data=json.dumps(template.tolist()))
-                gallery.append(template)
+        template_data = np.array(json.loads(template[0].data))
+        warning = template[0].modified_time < subject.modified_time
 
+        prob_feature = self.extractor.extract(face_image, settings.default_name)
 
-        face = Image.open(data['face'])
-        feature = self.extractor.extract(face, 'DEFAULT')
+        distance = np.linalg.norm(template_data.reshape([-1, 1]) - prob_feature.reshape([-1, 1]))
 
-        dis = linalg.norm(template.reshape([-1, 1]) - feature.reshape([-1, 1]))
-
-        if dis < threshold:
-            result = 1
-        else:
-            result = 0
-        return {'result': result}
-
-
-    def _get_person_gallery(self, person=None, feature_name='DEFAULT', app=None, need_mean=True):
-        if person is None or feature_name is None or app is None:
-            return None
-
-        faces= [face for face in Face.objects.using(app.appID).filter(person=person)]
-
-        if len(faces)==0:
-            return None
-
-        features = np.hstack([self._get_face_features(app.appID, face, feature_name=feature_name)
-                                   for face in faces])
-        if need_mean:
-            features = np.mean(features, axis=1).reshape([-1, 1])
-
-        return features
-
-    def _get_face_features(self, appID, face, feature_name='DEFAULT'):
-        result = Feature.objects.using(appID).filter(face=face, name=feature_name)
-        if len(result) == 0:  # if not found, calculate and save
-            with Image.open(face.image) as face_image:
-                result = self.extractor.extract(face_image, name=feature_name).real
-                face.image.close()
-            Feature.objects.db_manager(appID).create(face=face, name=feature_name, data=json.dumps(result.tolist()))
-        else:  # if found, read
-            result = np.array(json.loads(result[0].data))
-        return result # numpy ndarray
-
-
+        result = {'result': 1 if distance < threshold else 0}
+        if warning:
+            result['warning'] = 'Subject template has outdated. Pleaes update by /commands/enroll/ '
+        return result 
