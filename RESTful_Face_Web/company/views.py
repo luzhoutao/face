@@ -31,8 +31,9 @@ import numpy as np
 from django.utils import timezone
 import os, shutil
 import cv2
+import json
 # service
-from service import services
+from service import services, extraction
 
 #import uwsgi
 from RESTful_Face_Web.runtime_db import load_database
@@ -178,12 +179,12 @@ class SubjectViewSet(mixins.ListModelMixin,
         app = models.get_target_app(self.request.user, appID=self.request.data['appID'] if 'appID' in self.request.data else None)
         if app == None:
             raise ValidationError({'Create Subject': 'App Not Found!'})
-        serializer.save(userID=generate_unique_id(self.request.user), appID=app.appID)
+        serializer.save(subjectID=generate_unique_id(self.request.user), appID=app.appID)
 
     # override to do partial update
     def update(self, request, *args, **kwargs):
-        person = self.get_object()
-        serializer = self.get_serializer(person, data=request.data, partial=True)
+        subject = self.get_object()
+        serializer = self.get_serializer(subject, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
         return Response(serializer.data)
@@ -193,6 +194,7 @@ class FaceViewSet(viewsets.ModelViewSet):
     serializer_class = FaceSerializer
     permission_classes = (permissions.IsAuthenticated, TokenPermission)
     parser_classes = (MultiPartParser, FormParser, JSONParser, FileUploadParser)
+    feature_extractor = extraction.FeatureExtractor()
 
     def get_queryset(self):
         # get the person
@@ -201,8 +203,8 @@ class FaceViewSet(viewsets.ModelViewSet):
             raise ValidationError({'Person': 'App not found!'})
         subject = self.__get_subject(app, self.request.data)
 
-        # get person's all faces
-        return Face.objects.using(app.appID).filter(person__in=subject)
+        # get subject's all faces
+        return Face.objects.using(app.appID).filter(subject__in=subject)
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -213,25 +215,30 @@ class FaceViewSet(viewsets.ModelViewSet):
         if app==None:
             raise ValidationError({'Create Face', 'App Not Found!'})
         subject = self.__get_subject(app, self.request.data)
-        if len(subject) != 1:
+
+        if len(subject) != 1: # have and only have one person
             log.error('No person specified!')
             raise ValidationError({'FaceViewSet': 'Unique person name or id need to be given!'})
 
         image = None
         if 'image' in self.request.data:
             try:
-                print('checking...')
                 tmp_image = Image.open(self.request.data['image'])
                 tmp_array = np.array(tmp_image)
                 cv2.cvtColor(tmp_array, cv2.COLOR_RGB2BGR)
                 image = self.request.data['image']
-                print('check done.')
             except:
                 return Response(status=status.HTTP_400_BAD_REQUEST)
 
-        serializer.save(person=subject[0], image=image)
+        face = serializer.save(subject=subject[0], image=image)
+        print(subject[0].modified_time)
         subject[0].save() # this will update person's modified_time
+        print(subject[0].modified_time)
         app.save() # this will update app's modified_time
+
+        # calculate known features
+        for name, func in self.feature_extractor.extractors.items():
+            Feature.objects.db_manager(app.appID).create(feature_name=name, face=face, data=json.dumps(self.feature_extractor.extract(Image.open(self.request.data['image']), name).real.tolist()))
 
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
@@ -242,10 +249,10 @@ class FaceViewSet(viewsets.ModelViewSet):
     # filter to get company's faces
     def __get_subject(self, app, data):
         subject = Subject.objects.using(app.appID)
-        if 'name' in data:
-            subject = subject.filter(name=data['subject_name'])
-        elif 'userID' in self.request.data:
-            subject = subject.filter(userID=data['subjectID'])
+        if 'subject_name' in data:
+            subject = subject.filter(subject_name=data['subject_name'])
+        elif 'subjectID' in self.request.data:
+            subject = subject.filter(subjectID=data['subjectID'])
 
         return [s for s in subject]
 
@@ -259,8 +266,9 @@ def service_bind(service_config):
                 raise ValidationError({'Service': 'App Not Found'})
                         # validation service input
             app = App.objects.filter(appID=request.data['appID'], company=request.user)[0]
-            if not service.is_valid_input_data(request.data, app=app):
-                return Response(status=status.HTTP_400_BAD_REQUEST)
+            is_valid, info = service.is_valid_input_data(request.data, app=app)
+            if not is_valid:
+                return Response(status=status.HTTP_400_BAD_REQUEST, data={'info': info})
             return func(self, request, service, service_config[0], app)
         return func_wrapper
     return decorator
@@ -303,9 +311,17 @@ class CommandViewSet(mixins.ListModelMixin,
     @list_route(methods=['post', ], permission_classes=[TokenPermission, ])
     @service_bind(services.FACE_DETECTION)
     @log_command()
-    def face_detection(self,request, service, app):
+    def face_detection(self, request, service, app):
         results = service.execute(data=request.data, app=app)
         log.info("Service: "+services.FACE_DETECTION[1])
+        return Response(results)
+
+    @list_route(methods=['get', ], permission_classes=[TokenPermission, ])
+    @service_bind(services.ENROLLMENT)
+    @log_command()
+    def enroll(self, request, service, app):
+        results = service.execute(data=request.data, app=app)
+        log.info("Service: "+services.ENROLLMENT[1])
         return Response(results)
 
     @list_route(methods=['post', ], permission_classes=[TokenPermission, ])
