@@ -10,6 +10,8 @@ import json
 # model
 from company.models import Face, Feature, Subject, FeatureTemplate
 
+import cv2
+
 
 class VerificationService(BaseService):
 
@@ -21,6 +23,13 @@ class VerificationService(BaseService):
 
         if 'face' not in data:
             return False, 'Field <face> is required.'
+
+        try:
+            tmp_image = Image.open(data['face'])
+            tmp_array = np.array(tmp_image)
+            cv2.cvtColor(tmp_array, cv2.COLOR_RGB2BGR)
+        except:
+            return False, 'Face image wrong format or image data corrupted!'
  
         if 'subjectID' not in data:
             return False, 'Field <subjectID> is required.'

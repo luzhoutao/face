@@ -42,6 +42,13 @@ myDBManager = MySQLManager()
 #from RESTful_Face_Web.runtime_db.runtime_database import SQLiteManager
 #myDBManager = SQLiteManager()
 
+# error code in response
+NO_APP_ERROR = 5501
+INVALID_REQUEST_ERROR = 5502
+IMAGE_FORMAT_ERROR = 5503
+NO_IMAGE_ERROR = 5504
+NO_SUBJECT_ERROR = 5505
+
    
 class CompaniesViewSet(mixins.ListModelMixin,
                        mixins.CreateModelMixin,
@@ -56,39 +63,16 @@ class CompaniesViewSet(mixins.ListModelMixin,
         serializer.save(first_name=generate_unique_id(get_admin()))
         log.info("Company '%s' created !" % (serializer.data['username']))
 
-# due to special permission requirement, splite list/create with CRUD on single object
-class CompanyViewSet(mixins.RetrieveModelMixin,
-                     mixins.UpdateModelMixin,
-                     mixins.DestroyModelMixin,
-                     viewsets.GenericViewSet):
-    queryset = User.objects.using('default').all()
-    serializer_class = CompanySerializer
-    permission_classes = (CompanyPermission, )
 
-    # copy and modify UpdateModelMixin to do partial modification
-    def update(self, request, *args, **kwargs):
-        company = self.get_object()
-        serializer = self.get_serializer(company, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        self.perform_update(serializer)
-        log.info("Company '%s' updated!" % (serializer.data['username']))
-        return Response(serializer.data)
+    @list_route(methods=['get'], permission_classes=[permissions.IsAdminUser, ])
+    def token2token(self, request):
+        if 'companyID' not in request.data:
+            return Response(status=status.HTTP_400_BAD_REQUEST, data={'info': 'companyID is required.'})
 
-    # override to do CASCADE delete and drop the database
-    def perform_destroy(self, instance):
-        apps = App.objects.filter(company=instance, is_active=True)
-        for app in apps:
-            persons = Subject.objects.using(app.appID)
-            [ person.delete() for person in persons ]  # this will delete the image file
-
-            myDBManager.drop_database(app.appID)   #  this will delete the database file
-            app.delete()
-            # app, commands will be deleted automatically
-        instance.delete()
-
-    @detail_route(methods=['get'], permission_classes=[permissions.IsAdminUser, ])
-    def token2token(self, request, pk=None):
-        company = self.get_object()
+        company = User.objects.filter(first_name=request.data['companyID'])
+        if len(company) != 1:
+            return Response(status=status.HTTP_400_BAD_REQUEST, data={'info': 'Please provide valid and unique companyID.'})
+        company = company[0]
         try:
             lifespan = datetime.timedelta(seconds=0)
             if 'days' in request.data:
@@ -113,6 +97,37 @@ class CompanyViewSet(mixins.RetrieveModelMixin,
             # days, seconds parse error
             return Response(status=status.HTTP_400_BAD_REQUEST)
 
+# due to special permission requirement, splite list/create with CRUD on single object
+class CompanyViewSet(mixins.RetrieveModelMixin,
+                     mixins.UpdateModelMixin,
+                     mixins.DestroyModelMixin,
+                     viewsets.GenericViewSet):
+    queryset = User.objects.using('default').all()
+    serializer_class = CompanySerializer
+    permission_classes = (CompanyPermission, )
+    lookup_field = 'first_name'
+
+    # copy and modify UpdateModelMixin to do partial modification
+    def update(self, request, *args, **kwargs):
+        company = self.get_object()
+        serializer = self.get_serializer(company, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        log.info("Company '%s' updated!" % (serializer.data['username']))
+        return Response(serializer.data)
+
+    # override to do CASCADE delete and drop the database
+    def perform_destroy(self, instance):
+        apps = App.objects.filter(company=instance, is_active=True)
+        for app in apps:
+            persons = Subject.objects.using(app.appID)
+            [ person.delete() for person in persons ]  # this will delete the image file
+
+            myDBManager.drop_database(app.appID)   #  this will delete the database file
+            app.delete()
+            # app, commands will be deleted automatically
+        instance.delete()
+
     @detail_route(methods=['put', 'post'], permission_classes=[IsSuperuser, ])
     def authorization(self, request, pk=None):
         staff = self.get_object()
@@ -128,6 +143,7 @@ class AppViewSet(mixins.ListModelMixin,
 
     serializer_class = AppSerializer
     permission_classes = (permissions.IsAuthenticated, TokenPermission)
+    lookup_field = 'appID'
 
     def get_queryset(self):
         return App.objects.filter(company=self.request.user)
@@ -166,19 +182,20 @@ class SubjectViewSet(mixins.ListModelMixin,
                  viewsets.GenericViewSet):
     serializer_class = SubjectSerializer
     permission_classes = (permissions.IsAuthenticated, TokenPermission)
+    lookup_field = 'subjectID'
 
     # override to using specific database
     def get_queryset(self):
         app = models.get_target_app(self.request.user, appID=self.request.data['appID'] if 'appID' in self.request.data else None)
         if app==None:
-            raise ValidationError({'Subject': 'App Not Found!'})
+            raise ValidationError({'info': 'App Not Found!', 'error_code': NO_APP_ERROR})
         return Subject.objects.using(app.appID).all()
 
     # override to pass generated random ID
     def perform_create(self, serializer):
         app = models.get_target_app(self.request.user, appID=self.request.data['appID'] if 'appID' in self.request.data else None)
         if app == None:
-            raise ValidationError({'Create Subject': 'App Not Found!'})
+            raise ValidationError({'info': 'App Not Found!', 'error_code': NO_APP_ERROR})
         serializer.save(subjectID=generate_unique_id(self.request.user), appID=app.appID)
 
     # override to do partial update
@@ -200,8 +217,13 @@ class FaceViewSet(viewsets.ModelViewSet):
         # get the person
         app = models.get_target_app(self.request.user, appID=self.request.data['appID'] if 'appID' in self.request.data else None)
         if app==None:
-            raise ValidationError({'Person': 'App not found!'})
-        subject = self.__get_subject(app, self.request.data)
+            raise ValidationError({'info': 'App not found!', 'error_code': NO_APP_ERROR})
+        
+        subject = Subject.objects.using(app.appID)
+        if 'subjectID' in self.request.data:
+            subject = subject.filter(subjectID=self.request.data['subjectID'])
+            if len(subject) == 0:
+                raise ValidationError({'info': 'Invalid subject ID', 'error_code': NO_SUBJECT_ERROR})
 
         # get subject's all faces
         return Face.objects.using(app.appID).filter(subject__in=subject)
@@ -213,27 +235,30 @@ class FaceViewSet(viewsets.ModelViewSet):
         app = models.get_target_app(self.request.user,
                                     appID=self.request.data['appID'] if 'appID' in self.request.data else None)
         if app==None:
-            raise ValidationError({'Create Face', 'App Not Found!'})
-        subject = self.__get_subject(app, self.request.data)
+            raise ValidationError({'info': 'App Not Found!', 'error_code': NO_APP_ERROR})
+        if 'subjectID' not in self.request.data:
+            raise ValidationError({'info': 'SubjectID is required.', 'error_code': INVALID_REQUEST_ERROR})
+
+        subject = Subject.objects.using(app.appID).filter(subjectID=self.request.data['subjectID'])
 
         if len(subject) != 1: # have and only have one person
             log.error('No person specified!')
-            raise ValidationError({'FaceViewSet': 'Unique person name or id need to be given!'})
+            raise ValidationError({'info': 'Unique subject id need to be given!', 'error_code': NO_SUBJECT_ERROR})
 
         image = None
-        if 'image' in self.request.data:
-            try:
-                tmp_image = Image.open(self.request.data['image'])
-                tmp_array = np.array(tmp_image)
-                cv2.cvtColor(tmp_array, cv2.COLOR_RGB2BGR)
-                image = self.request.data['image']
-            except:
-                return Response(status=status.HTTP_400_BAD_REQUEST)
+        if 'image' not in self.request.data:
+            return Response(status=status.HTTP_400_BAD_REQUEST, data={'info': 'Image is required.', 'error_code': NO_IMAGE_ERROR})
+
+        try:
+            tmp_image = Image.open(self.request.data['image'])
+            tmp_array = np.array(tmp_image)
+            cv2.cvtColor(tmp_array, cv2.COLOR_RGB2BGR)
+            image = self.request.data['image']
+        except:
+            return Response(status=status.HTTP_400_BAD_REQUEST, data={'info': 'Image format error or data corrupted!', 'error_code': IMAGE_FORMAT_ERROR})
 
         face = serializer.save(subject=subject[0], image=image)
-        print(subject[0].modified_time)
         subject[0].save() # this will update person's modified_time
-        print(subject[0].modified_time)
         app.save() # this will update app's modified_time
 
         # calculate known features
@@ -246,16 +271,6 @@ class FaceViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         serializer.save(image=None if 'image' not in self.request.data else self.request.data['image'])
 
-    # filter to get company's faces
-    def __get_subject(self, app, data):
-        subject = Subject.objects.using(app.appID)
-        if 'subject_name' in data:
-            subject = subject.filter(subject_name=data['subject_name'])
-        elif 'subjectID' in self.request.data:
-            subject = subject.filter(subjectID=data['subjectID'])
-
-        return [s for s in subject]
-
 
 def service_bind(service_config):
     service = service_config[2]()
@@ -263,7 +278,7 @@ def service_bind(service_config):
         def func_wrapper(self, request):
             # find the app
             if 'appID' not in request.data or len(App.objects.filter(company=request.user, appID=request.data['appID']))==0:
-                raise ValidationError({'Service': 'App Not Found'})
+                raise ValidationError({'info': 'App Not Found',  'error_code': NO_APP_ERROR})
                         # validation service input
             app = App.objects.filter(appID=request.data['appID'], company=request.user)[0]
             is_valid, info = service.is_valid_input_data(request.data, app=app)
@@ -311,7 +326,7 @@ class CommandViewSet(mixins.ListModelMixin,
     @list_route(methods=['post', ], permission_classes=[TokenPermission, ])
     @service_bind(services.FACE_DETECTION)
     @log_command()
-    def face_detection(self, request, service, app):
+    def detect(self, request, service, app):
         results = service.execute(data=request.data, app=app)
         log.info("Service: "+services.FACE_DETECTION[1])
         return Response(results)
@@ -327,7 +342,7 @@ class CommandViewSet(mixins.ListModelMixin,
     @list_route(methods=['post', ], permission_classes=[TokenPermission, ])
     @service_bind(services.RECOGNITION)
     @log_command()
-    def recognition(self, request, service, app):
+    def recognize(self, request, service, app):
         results = service.execute(request=request, data=request.data, app=app)
         log.info("Service: "+services.RECOGNITION[1])
         return Response(results)

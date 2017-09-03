@@ -6,6 +6,7 @@ from datetime import datetime
 import shutil
 import os
 from django.utils.dateparse import parse_duration
+from django.utils import timezone
 # service
 from RESTful_Face_Web.settings import MEDIA_ROOT
 # face feature
@@ -32,6 +33,9 @@ class App(models.Model):
 
     def get_db_name(self):
         return self.company.first_name + self.app_name
+
+    def get_update_time(self):
+        return timezone.localtime(self.update_time)
 
     def delete(self, using=None, keep_parents=False):
         faces_path = os.path.join(MEDIA_ROOT, 'faces', str(self.appID))
@@ -78,6 +82,9 @@ class Command(models.Model):
         r = [service[1] for service in SERVICES if service[0]==self.serviceID]
         print(r)
         return r[0] if len(r) == 1 else 'Invalid serviceID !'
+
+    def get_issue_time(self):
+        return timezone.localtime(self.issue_time)
 
 #################### Data For Company ###################
 

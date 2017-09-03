@@ -24,6 +24,12 @@ class Classifier():
         return self._classifiers[classifier_name](gallery, probe_feature, k, model, threshold)
 
     def train(self, gallery, classifier_name):
+        '''
+        Train a classifier.
+        param: gallery. Contain features and subjects.
+        param: classifier_name.
+        return: a opened file instance representing the model. Typically, use temporary file.
+        '''
         assert(classifier_name in settings.need_training_classifiers)
         return self._trainers[classifier_name](gallery)
 

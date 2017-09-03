@@ -10,7 +10,7 @@ class CompanySerializer(serializers.ModelSerializer):
     companyID = serializers.CharField(source="first_name", read_only=True)
     class Meta:
         model = User
-        fields = ('id', 'url', 'username', 'email', 'password', 'companyID')
+        fields = ('username', 'email', 'password', 'companyID')
         extra_kwargs = {'password': {'write_only': True}}
 
     def create(self, validated_data):
@@ -22,6 +22,10 @@ class CompanySerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         serializers.raise_errors_on_nested_writes('update', self, validated_data)
         info = model_meta.get_field_info(instance)
+
+        if 'password' in validated_data:
+            instance.set_password(validated_data['password'])
+            validated_data.pop('password')
 
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
@@ -40,8 +44,8 @@ class SubjectSerializer(serializers.HyperlinkedModelSerializer):
 
     class Meta:
         model = Subject
-        fields = ('id', 'url', 'subjectID', 'appID', 'subject_name','faces')
-        read_only_fields = ('id', 'subjectID', 'appID')
+        fields = ('subjectID', 'appID', 'subject_name','faces')
+        read_only_fields = ('subjectID', 'appID')
 
     def create(self, validated_data):
         return Subject.objects.db_manager(validated_data['appID']).create(**validated_data)
@@ -55,7 +59,7 @@ class SubjectSerializer(serializers.HyperlinkedModelSerializer):
         return instance
 
 class FaceSerializer(serializers.HyperlinkedModelSerializer):
-    #showcase
+    subject = SubjectSerializer(required=False)
 
     class Meta:
         model = Face
@@ -76,17 +80,23 @@ class FaceSerializer(serializers.HyperlinkedModelSerializer):
         instance.save(using=instance.person.appID)
         return instance
 
+
+class AppSerializer(serializers.HyperlinkedModelSerializer):
+    status = serializers.CharField(source="get_status", read_only=True)
+    update_time = serializers.CharField(source='get_update_time', read_only=True)
+    company = CompanySerializer(required=False)
+
+    class Meta:
+        model = App
+        fields = ('company', 'app_name', 'status', 'appID', 'update_time')
+        read_only_fields = ['company', 'appID', 'update_time']
+
+
 class CommandSerializer(serializers.HyperlinkedModelSerializer):
     service = serializers.CharField(source='get_service_name')
+    issue_time = serializers.CharField(source='get_issue_time')
+    app = AppSerializer(required=False)
 
     class Meta:
         model = Command
         fields = ('id', 'url', 'company', 'app', 'service', 'issue_time', 'arguments', 'results')
-
-class AppSerializer(serializers.HyperlinkedModelSerializer):
-    status = serializers.CharField(source="get_status", read_only=True)
-
-    class Meta:
-        model = App
-        fields = ('id', 'url', 'company', 'app_name', 'status', 'appID', 'update_time')
-        read_only_fields = ['company', 'appID', 'update_time']

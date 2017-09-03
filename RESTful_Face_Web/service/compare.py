@@ -5,6 +5,8 @@ from . import settings
 from .recognition import FeatureExtractor
 # math
 from numpy import linalg
+import numpy as np
+import cv2
 
 
 class CompareService(BaseService):
@@ -17,8 +19,16 @@ class CompareService(BaseService):
         if 'face2' not in data:
             return False, 'Field <face2> is required.'
 
-        face1 = Image.open(data['face1'])
-        face2 = Image.open(data['face2'])
+        try: 
+            face1 = Image.open(data['face1'])
+            face2 = Image.open(data['face2'])
+            face1_array = np.array(face1)
+            face2_array = np.array(face2)
+            cv2.cvtColor(face1_array, cv2.COLOR_RGB2BGR)
+            cv2.cvtColor(face2_array, cv2.COLOR_RGB2BGR)
+        except:
+            return False, 'Face image wrong format or image data corrupted!'
+
         if not (tuple(face1.size) == tuple(settings.face_size) and tuple(face2.size) == tuple(settings.face_size)):
             return False, 'Face image has a wrong size. It should be '+ str(settings.face_size) + '.'
 

@@ -16,6 +16,7 @@ import numpy as np
 from functools import reduce
 from sklearn.externals import joblib
 from django.core.files import File
+from django.utils import timezone
 
 
 class EnrollmentService(BaseService):
@@ -91,18 +92,18 @@ class EnrollmentService(BaseService):
             # check if the classification model is outdated
             if not created and classifier_model.modified_time > app.update_time:
                 assert(is_updated==False)
-                return {'Updated time': classifier_model.modified_time}
+                return {'Updated time': timezone.localtime(classifier_model.modified_time)}
 
             if len(np.unique(gallery['subjects'])) < 2:
-                return {'info': 'At least, you need to have 2 subject enrolled with at least one face iamge.', 'error_code': settings.NOT_ENOUGH_SUBJECT_ERROR}
+                return {'info': 'At least, you need to have 2 subjects enrolled with at least one face iamge.', 'error_code': settings.NOT_ENOUGH_SUBJECT_ERROR}
 
             # get classification model of json format
             model_file = self.classifier.train(gallery, classifier_name)
             classifier_model.parameter_file = File(model_file)
             classifier_model.save()
             model_file.close()
-            return {'Updated time': classifier_model.modified_time}
-        return {'Updated time': app.update_time}
+            return {'Updated time': timezone.localtime(classifier_model.modified_time)}
+        return {'Updated time': timezone.localtime(app.update_time)}
         
             
     def _get_face_feature(self, appID, face, feature_name):

@@ -68,7 +68,7 @@ class FaceAligner():
 
 class FaceDetectionService(BaseService):
 
-    def is_valid_input_data(self, data=None):
+    def is_valid_input_data(self, data=None, app=None):
         # check required user input
         if 'image' not in data:
             return False, 'Field <image> is required.'
@@ -107,11 +107,6 @@ class FaceDetectionService(BaseService):
         faces = []
         for detection in detections:
             origin_size = (detection.right() - detection.left(), detection.bottom() - detection.top())
-
-            #shape = predictor(imarray, detection)
-            #landmarks = list(map(lambda p: (p.x, p.y), shape.parts()))
-
-            #face = aligner.align(image, landmarks)
 
             coordinates = [detection.left(), detection.top(), detection.right(), detection.bottom()]
             

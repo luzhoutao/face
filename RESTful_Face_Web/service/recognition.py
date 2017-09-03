@@ -44,7 +44,13 @@ class RecognitionService(BaseService):
         if 'face' not in data:
             return False, '<face> is required.'
 
-        face = Image.open(data['face'])
+        try:
+            face = Image.open(data['face'])
+            face_array = np.array(face)
+            cv2.cvtColor(face_array, cv2.COLOR_RGB2BGR)
+        except:
+            return False, 'Face image wrong format or image data corrupted!'
+
         if not (tuple(face.size) == tuple(settings.face_size)):
             return False, 'Face image has a wrong size' + str(face.size) + '. It should be '+ str(settings.face_size) + '.'
 
