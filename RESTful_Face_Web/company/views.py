@@ -55,13 +55,19 @@ class CompaniesViewSet(mixins.ListModelMixin,
                        viewsets.GenericViewSet):
     queryset = User.objects.using('default').all()
     serializer_class = CompanySerializer
-    permission_classes = (CompaniesPermission, )
+    permission_classes = (permissions.IsAuthenticated, )
     #authentication_classes = (ExpiringTokenAuthentication, )
 
     # override to create dynamic database
     def perform_create(self, serializer):
         serializer.save(first_name=generate_unique_id(get_admin()))
         log.info("Company '%s' created !" % (serializer.data['username']))
+
+    def get_queryset(self):
+        if self.request.user.is_superuser:
+            return User.objects.using('default').all()
+        else:
+            return User.objects.using('default').filter(username=self.request.user.username)
 
 
     @list_route(methods=['get'], permission_classes=[permissions.IsAdminUser, ])
