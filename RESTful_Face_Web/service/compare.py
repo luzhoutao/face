@@ -55,11 +55,11 @@ class CompareService(BaseService):
         feature1 = extractor.extract(face1, 'DEFAULT')
         feature2 = extractor.extract(face2, 'DEFAULT')
 
-        dis = linalg.norm(feature1.reshape([-1, 1]) - feature2.reshape([-1, 1]))
+        distance = linalg.norm(feature1.reshape([-1, 1]) - feature2.reshape([-1, 1]))
 
-        if dis < threshold:
+        if distance < threshold:
             result = 1
         else:
             result = 0
         print(result)
-        return {'result': result}
+        return {'result': result, 'distance': distance}

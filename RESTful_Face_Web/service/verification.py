@@ -73,7 +73,7 @@ class VerificationService(BaseService):
 
         distance = np.linalg.norm(template_data.reshape([-1, 1]) - prob_feature.reshape([-1, 1]))
 
-        result = {'result': 1 if distance < threshold else 0}
+        result = {'result': 1 if distance < threshold else 0, 'distance': distance}
         if warning:
             result['warning'] = 'Subject template has outdated. Pleaes update by /commands/enroll/ '
         return result 
