@@ -40,6 +40,9 @@ class VerificationService(BaseService):
         if not (tuple(face.size) == tuple(settings.face_size)):
             return False, 'Face image has a wrong size' + str(face.size) + '. It should be '+ str(settings.face_size) + '.'
 
+        if len(subject_set) == 0:
+            return False, 'Wrong subject ID'
+
         if 'threshold' in data and data['threshold'].lower() not in ['l', 'm', 'h']:
             return False, 'Threshold(%s) not understand.'%(data['threshold'])
         return True, ''
