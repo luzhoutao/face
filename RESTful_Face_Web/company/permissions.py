@@ -11,7 +11,7 @@ class CompaniesPermission(permissions.BasePermission):
     def has_permission(self, request, view):
         anonymous = request.user and request.user.is_anonymous
         superuser = request.user and request.user.is_superuser
-        return request.method == 'POST' or (not anonymous)
+        return (request.method == 'POST' and superuser) or (not anonymous and requests.method != 'POST')
 
 class CompanyPermission(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
