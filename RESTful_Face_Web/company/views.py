@@ -55,7 +55,7 @@ class CompaniesViewSet(mixins.ListModelMixin,
                        viewsets.GenericViewSet):
     queryset = User.objects.using('default').all()
     serializer_class = CompanySerializer
-    permission_classes = (permissions.IsAuthenticated, )
+    permission_classes = (CompaniesPermission, )
     #authentication_classes = (ExpiringTokenAuthentication, )
 
     # override to create dynamic database
