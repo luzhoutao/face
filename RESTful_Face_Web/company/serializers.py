@@ -60,10 +60,11 @@ class SubjectSerializer(serializers.HyperlinkedModelSerializer):
 
 class FaceSerializer(serializers.HyperlinkedModelSerializer):
     subject = SubjectSerializer(required=False)
+    imageID = serializers.CharField(source='id', read_only=True)
 
     class Meta:
         model = Face
-        fields = ('id', 'url', 'subject', 'created_time', 'modified_time', 'image')
+        fields = ('imageID', 'url', 'subject', 'created_time', 'modified_time', 'image')
         read_only_fields = ('subject', )
 
     # override to user company's database
