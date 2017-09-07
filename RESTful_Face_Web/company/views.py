@@ -171,6 +171,9 @@ class AppViewSet(mixins.ListModelMixin,
         #persons = Person.objects.using(app.appID)
         #[person.delete() for person in persons]
 
+        if not app.is_active: # check if the app has already been deleted
+            return
+
         face_path = os.path.join(MEDIA_ROOT, 'faces', app.appID)
         if os.path.exists(face_path):
             shutil.rmtree(face_path)

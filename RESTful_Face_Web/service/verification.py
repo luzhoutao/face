@@ -55,7 +55,7 @@ class VerificationService(BaseService):
         face_image = Image.open(data['face'])
 
         if 'threshold' in data:
-            threshold = settings.openface_NN_Threshold[data['threshold']]
+            threshold = settings.openface_NN_Threshold[data['threshold'].upper()]
         else:
             threshold = settings.openface_NN_L_Threshold
 
