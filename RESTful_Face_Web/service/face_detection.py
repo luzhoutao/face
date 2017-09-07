@@ -113,6 +113,6 @@ class FaceDetectionService(BaseService):
             face = aligner.align(settings.openface_imgDim, imarray, bb=detection)
 
             data = [(pixel[0], pixel[1], pixel[2]) for row in np.asarray(face) for pixel in row]
-            faces.append({'data': data, 'origin_size': origin_size, 'size': settings.face_size, 'coordinates': coordinates})
+            faces.append({'data': data, 'size': settings.face_size, 'coordinates': coordinates})
 
         return {'faces': faces}
